@@ -24,28 +24,32 @@ class move_simulator:
 		# each key holds another rotation variant of the current shape.
 		# simulate with each rotation from the bottom of the board upwards.
 		previous_move = None
+		previous_position = None
 		for rotation_id, shape_array in shapes_data.items():
 			shape_height, shape_width = shape_array.shape
-			print(f"\nrotation variant: {rotation_id}\n{shape_array}")
+			# print(f"\nrotation variant: {rotation_id}\n{shape_array}")
 			for col in range(board_width-(shape_width-1)):
 				found_move_for_this_col = False
 				for row in list(range(board_height))[:board_height-(shape_height-1)]:
 					simulated_move, simulated_position = self.construct_a_move((col, row), cleaned_board, shape_array)
 					if self.check_for_hit(simulated_move):
-						print("found hit")
+						# print("found hit")
 						found_move_for_this_col = True
 						final_move = previous_move
-						move_score = self.calculate_move_score(final_move, simulated_position)
-						self.update_lowest_score(move_score, rotation_id, simulated_position, final_move)
+						final_position = previous_position
+						move_score = self.calculate_move_score(final_move, final_position)
+						self.update_lowest_score(move_score, rotation_id, final_position, final_move)
 						break
-					previous_move = (simulated_move, simulated_position)
+					previous_move = simulated_move
+					previous_position = simulated_position
 
 
 
 				if not found_move_for_this_col:
 					final_move = simulated_move
-					move_score = self.calculate_move_score(final_move, simulated_position)
-					self.update_lowest_score(move_score, rotation_id, simulated_position, final_move)
+					final_position = simulated_position
+					move_score = self.calculate_move_score(final_move, final_position)
+					self.update_lowest_score(move_score, rotation_id, final_position, final_move)
 
 						# stuff to do when we have a hit
 					# next thing to do is evaluate when any square in the simulated_move grid = 2
@@ -76,18 +80,18 @@ class move_simulator:
 		return False
 
 	def calculate_move_score(self, simulated_move: np.ndarray, simulated_position: list):
-		print(f"sim move, shape: {simulated_move.shape}")
-		pp.pp(simulated_move)
-		print("sim pos")
-		pp.pp(simulated_position)
+		# print(f"sim move, shape: {simulated_move.shape}")
+		# pp.pp(simulated_move)
+		# print("sim pos")
+		# pp.pp(simulated_position)
 		y_coords = [position[0] for position in simulated_position]
 		y_coords = list(set(y_coords))
 		height_penalty = 19 - max(y_coords)
-		print(f"y_coords from sim position: {y_coords}")
+		# print(f"y_coords from sim position: {y_coords}")
 		gap_penalty = 0
-		print(f"range from min y_coords to 20: {list(range(min(y_coords), 20))}")
+		# print(f"range from min y_coords to 20: {list(range(min(y_coords), 20))}")
 		for n, row in enumerate(range(min(y_coords), 20), start=0):
-			print(f"n: {n}, row: {row}")
+			# print(f"n: {n}, row: {row}")
 			for col in simulated_move[row]:
 				if col == 0:
 					gap_penalty += 2**n
