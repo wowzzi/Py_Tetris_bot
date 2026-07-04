@@ -371,13 +371,17 @@ class TetrisGame:
 		"""
 		input dict intended to be sorted/grouped tetris objects dict generated from self.sort_obj_dict.
 		returned string is the key to acess the correct tetris shape type.
+
+		found bug where screencap is taken without tetromino fully visible.
+		this ends up with the static objects selected as the main tetromino group.
+
 		:param input_dict:
 		:return string:
 		"""
 		sorting_dict = {}
 		active_key = None
-		if len(input_dict) == 1:
-			return list(input_dict.keys())[0]
+		# if len(input_dict) == 1:
+		# 	return list(input_dict.keys())[0]
 
 		for key, value in input_dict.items():
 			if len(value) == 4:
@@ -436,6 +440,23 @@ class TetrisGame:
 		return np.array(binary_array, dtype=np.int8)
 
 
+	def calc_rotation_needed(self, rotation_id_current, rotation_id_final):
+		return rotation_id_final - rotation_id_current
+
+	def rotation_automate(self, rotation_score):
+		print("rotation automation function:")
+		print(rotation_score)
+		if rotation_score < 0:
+			#rotate left
+			for n in range(abs(rotation_score)):
+				print("pressing z")
+				kb.send('z')
+		else:
+			#rotate right
+			for n in range(rotation_score):
+				# 72 is the scan code for up arrow key
+				print("pressing up")
+				kb.send(72)
 
 
 
@@ -479,6 +500,9 @@ while True:
 
 		# this is a string; key used to acess the shape data usually group4
 		active_tetris_group_key = game_bot.find_active_group(sorted_neighbour_dict)
+		if not active_tetris_group_key:
+			print("couldn't find the active group")
+			continue
 		#returns a list of objects that are currently involved with the active piece
 		active_tetris_objects = sorted_neighbour_dict.get(active_tetris_group_key)
 
@@ -506,6 +530,12 @@ while True:
 			  f"\nfinal move grid: {move_simulator.final_move_grid}")
 
 
+		# need to calculate how many button presses to do the move from the current position
+		# then i will figure out how I implement that in keyboard or autogui
+
+		required_rotate = game_bot.calc_rotation_needed(rotation_id, move_simulator.rotation_id)
+		print(f"required number of rotations: {required_rotate}")
+		game_bot.rotation_automate(required_rotate)
 		print("o ran")
 
 
