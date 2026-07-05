@@ -3,7 +3,7 @@ from PIL import Image
 import mss
 from mss import tools
 import numpy as np
-from numpy.lib.recfunctions import structured_to_unstructured
+# from numpy.lib.recfunctions import structured_to_unstructured
 
 import tetris_helper_funcs as tf
 import keyboard as kb
@@ -458,6 +458,40 @@ class TetrisGame:
 				print("pressing up")
 				kb.send(72)
 
+	def calculate_x_translation_required(self, rotation_score, current_active_objs, target_column, piece_id):
+		current_min_x = min([obj.index[1] for obj in current_active_objs])
+		x_offset = 0
+
+		if rotation_score == 0:
+			pass
+		else:
+			if piece_id == "long":
+				if rotation_score > 0:
+					x_offset = 2
+				else:
+					x_offset = 1
+			else:
+				if rotation_score == 1 or roation_socre == -3:
+					x_offset = 1
+		self.translation_automate(current_min_x + x_offset, target_column)
+
+	def translation_automate(self, current_x, target_x):
+		move_score = target_x - current_x
+		print(f"move_score: {move_score}")
+		if move_score > 0:
+
+			while move_score > 0:
+				print("pressing right")
+				kb.send(77)
+				move_score -= 1
+		elif move_score < 0:
+
+			for n in range(abs(move_score)):
+				print("pressing left")
+				kb.send(75)
+
+
+
 
 
 
@@ -502,6 +536,7 @@ while True:
 		active_tetris_group_key = game_bot.find_active_group(sorted_neighbour_dict)
 		if not active_tetris_group_key:
 			print("couldn't find the active group")
+			# add some logic to turn off bot if 3 in a row are unable to find, probably means the user tabbed out
 			continue
 		#returns a list of objects that are currently involved with the active piece
 		active_tetris_objects = sorted_neighbour_dict.get(active_tetris_group_key)
@@ -518,6 +553,7 @@ while True:
 
 		# remember trg_handler stands for Tetromino ref grids handler (stored all the 4x4 and smaller grids for tetromino reference here)
 		tet_shape_key, rotation_id = trg_handler.determine_tetromino(shape_grid)
+		# minimised grid is just the smallest dimension array to hold the shape in binary
 		minimised_shape_dict = trg_handler.minimised_data.get(tet_shape_key)
 
 		# just a 20x10 dimensional array filled with 1's where shapes exist and 0's where they dont, inteded for simulations
@@ -527,7 +563,8 @@ while True:
 		print(f"lowest score achieve: {move_simulator.min_score}"
 			  f"\nrotation id: {move_simulator.rotation_id}"
 			  f"\npositional indexes: {move_simulator.position_indexes}"
-			  f"\nfinal move grid: {move_simulator.final_move_grid}")
+			  f"\nfinal move grid: {move_simulator.final_move_grid}"
+			  f"\nfinal move grid: {move_simulator.final_move_col}")
 
 
 		# need to calculate how many button presses to do the move from the current position
@@ -536,20 +573,13 @@ while True:
 		required_rotate = game_bot.calc_rotation_needed(rotation_id, move_simulator.rotation_id)
 		print(f"required number of rotations: {required_rotate}")
 		game_bot.rotation_automate(required_rotate)
+		game_bot.calculate_x_translation_required(required_rotate, active_tetris_objects, move_simulator.final_move_col, tet_shape_key)
 		print("o ran")
 
-
+# thoughts from last session is that the keyboard keypresses are too fast, use time module to add a delay
 
 	elif event.event_type == kb.KEY_DOWN and event.name == "q":
 		break
 
-#error at session end
-# Traceback (most recent call last):
-#   File "C:\Users\willd\PycharmProjects\Tetris_bot_project\Tetris_bot_OOP.py", line 502, in <module>
-#     move_simulator.simulate_moves(binary_board_state, active_tetris_objects, minimised_shape_dict)
-#   File "C:\Users\willd\PycharmProjects\Tetris_bot_project\move_simulator.py", line 38, in simulate_moves
-#     move_score = self.calculate_move_score(final_move, simulated_position)
-#   File "C:\Users\willd\PycharmProjects\Tetris_bot_project\move_simulator.py", line 93, in calculate_move_score
-#     for col in simulated_move[row]:
-# IndexError: tuple index out of range
+
 

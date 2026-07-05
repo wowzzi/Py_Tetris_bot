@@ -222,4 +222,5 @@ __marimo__/
 *.png
 *.PNG
 auto_screenshot_getter.py
+python_time_testing.py
 Tetrominoes

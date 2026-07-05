@@ -7,12 +7,14 @@ class move_simulator:
 		self.rotation_id = None
 		self.position_indexes = None
 		self.final_move_grid = None
+		self.final_move_col = None
 
 	def simulate_moves(self, board_state_array: np.ndarray, active_tetris_objects:list, shapes_data:dict):
 		self.min_score = None
 		self.rotation_id = None
 		self.position_indexes = None
 		self.final_move_grid = None
+		self.final_move_col = None
 		board_height, board_width = board_state_array.shape
 
 		print(board_height, board_width)
@@ -38,7 +40,7 @@ class move_simulator:
 						final_move = previous_move
 						final_position = previous_position
 						move_score = self.calculate_move_score(final_move, final_position)
-						self.update_lowest_score(move_score, rotation_id, final_position, final_move)
+						self.update_lowest_score(move_score, rotation_id, final_position, final_move, col)
 						break
 					previous_move = simulated_move
 					previous_position = simulated_position
@@ -49,7 +51,7 @@ class move_simulator:
 					final_move = simulated_move
 					final_position = simulated_position
 					move_score = self.calculate_move_score(final_move, final_position)
-					self.update_lowest_score(move_score, rotation_id, final_position, final_move)
+					self.update_lowest_score(move_score, rotation_id, final_position, final_move, col)
 
 						# stuff to do when we have a hit
 					# next thing to do is evaluate when any square in the simulated_move grid = 2
@@ -97,14 +99,16 @@ class move_simulator:
 					gap_penalty += 2**n
 		return height_penalty + gap_penalty
 
-	def update_lowest_score(self, new_score, current_rotation, current_position_indexes, final_move_grid):
+	def update_lowest_score(self, new_score, current_rotation, current_position_indexes, final_move_grid, final_move_col):
 		if self.min_score is None:
 			self.min_score = new_score
 			self.rotation_id = current_rotation
 			self.position_indexes = current_position_indexes
 			self.final_move_grid = final_move_grid
+			self.final_move_col = final_move_col
 		elif self.min_score > new_score:
 			self.min_score = new_score
 			self.rotation_id = current_rotation
 			self.position_indexes = current_position_indexes
 			self.final_move_grid = final_move_grid
+			self.final_move_col = final_move_col
