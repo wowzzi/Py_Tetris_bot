@@ -27,6 +27,7 @@ class TetrisGame:
 		self.error_count = 0
 		self.fps = fps
 		self.time_per_frame = 1.00/self.fps
+		print(self.time_per_frame)
 		self.clock = Timer_class.timer(self.time_per_frame)
 
 	def define_screen_region(self):
@@ -522,6 +523,9 @@ class TetrisGame:
 						move_timer.reset()
 						break
 
+	def press_space(self):
+		kb.send(57)
+
 
 
 
@@ -555,15 +559,15 @@ while True:
 		setup_done = True
 
 	elif setup_done and event.event_type == kb.KEY_DOWN and event.name == "o":
-		time.sleep(0.1)
+		print("o pressed")
+		# time.sleep(0.1)
+		n = 0
 		game_bot.clock.reset()
 		while True:
-			event = kb.read_event()
-			if event.event_type == kb.KEY_DOWN and event.name == "o":
-				break
+
 			game_bot.clock.tick()
 			if game_bot.clock:
-				game_bot.clock.reset()
+
 				# gets the screenshot, makes it an numpy array
 				game_bot.present_scn = game_bot.convert_sct_to_array()
 				game_bot.generate_board_px_means()
@@ -579,6 +583,8 @@ while True:
 					print("couldn't find the active group")
 
 					game_bot.add_error()
+					if game_bot.error_count > 50:
+						break
 					# add some logic to turn off bot if 3 in a row are unable to find, probably means the user tabbed out
 					continue
 				else:
@@ -619,6 +625,13 @@ while True:
 				print(f"required number of rotations: {required_rotate}")
 				game_bot.rotation_automate(required_rotate)
 				game_bot.calculate_x_translation_required(required_rotate, active_tetris_objects, move_simulator.final_move_col, tet_shape_key)
+
+				if n >= 3:
+					time.sleep(0.1)
+					game_bot.press_space()
+					n=0
+				n+=1
+				game_bot.clock.reset()
 				print("o ran")
 
 # thoughts from last session is that the keyboard keypresses are too fast, use time module to add a delay

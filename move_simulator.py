@@ -86,17 +86,19 @@ class move_simulator:
 		# pp.pp(simulated_move)
 		# print("sim pos")
 		# pp.pp(simulated_position)
+		if simulated_move is None or simulated_position is None:
+			return 500
 		y_coords = [position[0] for position in simulated_position]
 		y_coords = list(set(y_coords))
-		height_penalty = 19 - max(y_coords)
+		height_penalty = (19 - max(y_coords))*10
 		# print(f"y_coords from sim position: {y_coords}")
 		gap_penalty = 0
 		# print(f"range from min y_coords to 20: {list(range(min(y_coords), 20))}")
-		for n, row in enumerate(range(min(y_coords), 20), start=0):
-			# print(f"n: {n}, row: {row}")
-			for col in simulated_move[row]:
-				if col == 0:
-					gap_penalty += 2**n
+		# for n, row in enumerate(range(min(y_coords), 20), start=0):
+		# 	# print(f"n: {n}, row: {row}")
+		# 	for col in simulated_move[row]:
+		# 		if col == 0:
+		# 			gap_penalty += 2**n
 		return height_penalty + gap_penalty
 
 	def update_lowest_score(self, new_score, current_rotation, current_position_indexes, final_move_grid, final_move_col):
