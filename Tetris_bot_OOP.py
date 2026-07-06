@@ -27,7 +27,7 @@ class TetrisGame:
 		self.error_count = 0
 		self.fps = fps
 		self.time_per_frame = 1.00/self.fps
-		self.clock = Timer_class(self.time_per_frame)
+		self.clock = Timer_class.timer(self.time_per_frame)
 
 	def define_screen_region(self):
 			monitor = self.sct.monitors[self.mon_number]
