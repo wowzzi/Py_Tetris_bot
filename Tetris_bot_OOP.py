@@ -454,32 +454,32 @@ class TetrisGame:
 		return rotation_id_final - rotation_id_current
 
 	def rotation_automate(self, rotation_score):
-		print("rotation automation function:")
-		print(rotation_score)
-		rotation_timer = Timer_class.timer(0.02)
-		if rotation_score < 0:
-			#rotate left
-			while rotation_score < 0:
-				print("pressing z")
-				kb.send('z')
-				rotation_score += 1
-				while rotation_score < 0:
-					rotation_timer.tick()
-					if rotation_timer:
-						rotation_timer.reset()
-						break
-		elif rotation_score > 0:
-			while rotation_score > 0:
-			#rotate right
-				# 72 is the scan code for up arrow key
-				print("pressing up")
-				kb.send(72)
-				rotation_score -= 1
-				while rotation_score > 0:
-					rotation_timer.tick()
-					if rotation_timer:
-						rotation_timer.reset()
-						break
+		# print("rotation automation function:")
+		# print(rotation_score)
+		rotation_timer = Timer_class.timer(0.04)
+
+		#rotate left
+		while rotation_score < 0:
+			print("pressing z")
+			kb.send('z')
+			rotation_score += 1
+			while True:
+				rotation_timer.tick()
+				if rotation_timer:
+					rotation_timer.reset()
+					break
+
+		while rotation_score > 0:
+		#rotate right
+			# 72 is the scan code for up arrow key
+			print("pressing up")
+			kb.send(72)
+			rotation_score -= 1
+			while True:
+				rotation_timer.tick()
+				if rotation_timer:
+					rotation_timer.reset()
+					break
 
 	def calculate_x_translation_required(self, rotation_score, current_active_objs, target_column, piece_id):
 		current_min_x = min([obj.index[1] for obj in current_active_objs])
@@ -500,28 +500,28 @@ class TetrisGame:
 
 	def translation_automate(self, current_x, target_x):
 		move_score = target_x - current_x
-		print(f"move_score: {move_score}")
-		move_timer = Timer_class.timer(0.02)
-		if move_score > 0:
-			while move_score > 0:
-				print("pressing right")
-				kb.send(77)
-				move_score -= 1
-				while move_score > 0:
-					move_timer.tick()
-					if move_timer:
-						move_timer.reset()
-						break
-		elif move_score < 0:
-			while move_score < 0:
-				print("pressing left")
-				kb.send(75)
-				move_score += 1
-				while move_score < 0:
-					move_timer.tick()
-					if move_timer:
-						move_timer.reset()
-						break
+		print(f"required moves: {move_score}")
+		move_timer = Timer_class.timer(0.04)
+
+		while move_score > 0:
+			print("pressing right")
+			kb.send(77)
+			move_score -= 1
+			while True:
+				move_timer.tick()
+				if move_timer:
+					move_timer.reset()
+					break
+
+		while move_score < 0:
+			print("pressing left")
+			kb.send(75)
+			move_score += 1
+			while True:
+				move_timer.tick()
+				if move_timer:
+					move_timer.reset()
+					break
 
 	def press_space(self):
 		kb.send(57)
@@ -538,7 +538,7 @@ class TetrisGame:
 mss_instance = mss.MSS()
 ref_png_path = Path(__file__).with_name("Pause_button_ref.png")
 
-game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=8)
+game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=5)
 game_bot.define_screen_region()
 game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
 trg_handler = trg.ref_grid_handler()
@@ -560,13 +560,13 @@ while True:
 
 	elif setup_done and event.event_type == kb.KEY_DOWN and event.name == "o":
 		print("o pressed")
-		# time.sleep(0.1)
+
 		n = 0
 		# game_bot.clock.reset()
 		# while True:
-
-			# game_bot.clock.tick()
-			# if game_bot.clock:
+		#
+		# 	game_bot.clock.tick()
+		# 	if game_bot.clock:
 
 		# gets the screenshot, makes it an numpy array
 		game_bot.present_scn = game_bot.convert_sct_to_array()
@@ -592,10 +592,10 @@ while True:
 		#returns a list of objects that are currently involved with the active piece
 		active_tetris_objects = sorted_neighbour_dict.get(active_tetris_group_key)
 
-		print(f"active tetris group: {active_tetris_group_key}")
-		for obj in active_tetris_objects:
-			print(f"Object ID: {obj}"
-				  f"\nObject index: {obj.index}")
+		# print(f"active tetris group: {active_tetris_group_key}")
+		# for obj in active_tetris_objects:
+		# 	print(f"Object ID: {obj}"
+		# 		  f"\nObject index: {obj.index}")
 
 		# normalised coords takes the index of each object in the active group and subtracts the minimum from each dimension
 		normalised_coords = game_bot.generate_shape_coords(active_tetris_objects)
@@ -609,13 +609,28 @@ while True:
 
 		# just a 20x10 dimensional array filled with 1's where shapes exist and 0's where they dont, inteded for simulations
 		binary_board_state = game_bot.generate_binary_grid()
+
+		# setup to test if I can find a match between previous and current board states
+		current_clean_board = move_simulator.generate_clean_binary_board(binary_board_state, active_tetris_objects)
+		# print("current cleaned board")
+		# print(current_clean_board)
+		previous_clean_board = move_simulator.final_move_grid
+		# print("previous cleaned board")
+		# print(previous_clean_board)
+		if current_clean_board is None or previous_clean_board is None:
+			pass
+		else:
+			difference = abs(current_clean_board - previous_clean_board)
+			if difference.mean() == 0:
+				print("LAST MOVE ACTUALLY MATCHED THE INTENDED MOVE!!!!")
+
 		# class object to handle simulated board states and produce the optimal move
 		move_simulator.simulate_moves(binary_board_state, active_tetris_objects, minimised_shape_dict)
-		print(f"lowest score achieve: {move_simulator.min_score}"
-			  f"\nrotation id: {move_simulator.rotation_id}"
-			  f"\npositional indexes: {move_simulator.position_indexes}"
-			  f"\nfinal move grid: {move_simulator.final_move_grid}"
-			  f"\nfinal move grid: {move_simulator.final_move_col}")
+		# print(f"lowest score achieved: {move_simulator.min_score}")
+		# print(f"\nfinal position rotation id: {move_simulator.rotation_id}")
+		# print(f"\nfinal positional indexes: {move_simulator.position_indexes}")
+		# print(f"\nfinal move grid: {move_simulator.final_move_grid}")
+		# printf("\nfinal move column: {move_simulator.final_move_col}"))
 
 
 		# need to calculate how many button presses to do the move from the current position
@@ -627,10 +642,11 @@ while True:
 		game_bot.calculate_x_translation_required(required_rotate, active_tetris_objects, move_simulator.final_move_col, tet_shape_key)
 
 		# if n >= 3:
-		time.sleep(0.1)
+		time.sleep(0.2)
 		game_bot.press_space()
 			# n=0
 		# n+=1
+		# time.sleep(0.2)
 		# game_bot.clock.reset()
 		print("o ran")
 

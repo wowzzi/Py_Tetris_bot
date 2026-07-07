@@ -17,7 +17,7 @@ class move_simulator:
 		self.final_move_col = None
 		board_height, board_width = board_state_array.shape
 
-		print(board_height, board_width)
+		# print(board_height, board_width)
 		cleaned_board = board_state_array.copy()
 		for obj in active_tetris_objects:
 			cleaned_board[obj.index] = 0
@@ -40,6 +40,7 @@ class move_simulator:
 						final_move = previous_move
 						final_position = previous_position
 						move_score = self.calculate_move_score(final_move, final_position)
+						# print(f"for column: {col}\nrotation id: {rotation_id}\nthe move scored: {move_score}\n{shape_array}")
 						self.update_lowest_score(move_score, rotation_id, final_position, final_move, col)
 						break
 					previous_move = simulated_move
@@ -89,36 +90,52 @@ class move_simulator:
 		if simulated_move is None or simulated_position is None:
 			return 500
 		y_coords = [position[0] for position in simulated_position]
-		y_coords = list(set(y_coords))
 		x_coords = [position[1] for position in simulated_position]
-		x_coords = list(set(x_coords))
+
+		y_coord_sum_score = sum([19-y for y in y_coords])
+		height_penalty = y_coord_sum_score
+
 		x_min, x_max = min(x_coords), max(x_coords)
-		height_penalty = (19 - max(y_coords))*2
+
+		# print(f"height penalty: {height_penalty}")
 		# print(f"y_coords from sim position: {y_coords}")
-		gap_penalty = 0
+		vertical_gap_penalty = 0
+		horizontal_gap_penalty = 0
 		# print(f"range from min y_coords to 20: {list(range(min(y_coords), 20))}")
 		# check gap in y direction only from the shape downwards, minimise leaving gaps directly below
-		for col in range(x_min, x_max+1):
-			col_heights =[]
-			for position in simulated_position:
-				if position[1] == col:
-					col_heights.append(position[0])
-			max_col_height = min(col_heights) # min because coordinate of 19 height is actually at the bottom.
-			gaps_in_a_row = 1
-			for row in range(max_col_height, 20):
-				if simulated_move[row][col] == 0:
-					gap_penalty += 10 * gaps_in_a_row
-					gaps_in_a_row += 1
-				else:
-					gaps_in_a_row = 0
+		for row, col in simulated_position:
+			col_slice = simulated_move[row:20].T[col]
+			for n, binary_no in enumerate(col_slice, start =1):
+				if binary_no == 0:
+					vertical_gap_penalty += 10 + 10/n
 
+			row_slice = simulated_move[row][col-1:col+2]
+			for binary_no in row_slice:
+				if binary_no == 0:
+					horizontal_gap_penalty += 5
+
+		# for col in range(x_min, x_max+1):
+		# 	col_heights =[]
+		# 	for position in simulated_position:
+		# 		if position[1] == col:
+		# 			col_heights.append(position[0])
+		# 	max_col_height = min(col_heights) # min because coordinate of 19 height is actually at the bottom.
+		# 	gaps_in_a_row = 1
+		# 	for row in range(max_col_height, 20):
+		# 		if simulated_move[row][col] == 0:
+		# 			gap_penalty += 10 * gaps_in_a_row
+		# 			gaps_in_a_row += 1
+		# 		else:
+		# 			gaps_in_a_row = 1
+
+		# print(f"gap penalty: {gap_penalty}")
 
 		# for n, row in enumerate(range(min(y_coords), 20), start=0):
 		# 	# print(f"n: {n}, row: {row}")
 		# 	for col in simulated_move[row]:
 		# 		if col == 0:
 		# 			gap_penalty += 2**n
-		return height_penalty + gap_penalty
+		return height_penalty + vertical_gap_penalty + horizontal_gap_penalty
 
 	def update_lowest_score(self, new_score, current_rotation, current_position_indexes, final_move_grid, final_move_col):
 		if self.min_score is None:
@@ -133,3 +150,12 @@ class move_simulator:
 			self.position_indexes = current_position_indexes
 			self.final_move_grid = final_move_grid
 			self.final_move_col = final_move_col
+
+	def generate_clean_binary_board(self, board_state_array: np.ndarray, active_tetris_objects: list) -> np.ndarray:
+		if board_state_array is None or active_tetris_objects is None:
+			return None
+		cleaned_board = board_state_array.copy()
+		for obj in active_tetris_objects:
+			cleaned_board[obj.index] = 0
+
+		return cleaned_board
