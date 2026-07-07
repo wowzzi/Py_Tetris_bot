@@ -90,10 +90,29 @@ class move_simulator:
 			return 500
 		y_coords = [position[0] for position in simulated_position]
 		y_coords = list(set(y_coords))
-		height_penalty = (19 - max(y_coords))*10
+		x_coords = [position[1] for position in simulated_position]
+		x_coords = list(set(x_coords))
+		x_min, x_max = min(x_coords), max(x_coords)
+		height_penalty = (19 - max(y_coords))*2
 		# print(f"y_coords from sim position: {y_coords}")
 		gap_penalty = 0
 		# print(f"range from min y_coords to 20: {list(range(min(y_coords), 20))}")
+		# check gap in y direction only from the shape downwards, minimise leaving gaps directly below
+		for col in range(x_min, x_max+1):
+			col_heights =[]
+			for position in simulated_position:
+				if position[1] == col:
+					col_heights.append(position[0])
+			max_col_height = min(col_heights) # min because coordinate of 19 height is actually at the bottom.
+			gaps_in_a_row = 1
+			for row in range(max_col_height, 20):
+				if simulated_move[row][col] == 0:
+					gap_penalty += 10 * gaps_in_a_row
+					gaps_in_a_row += 1
+				else:
+					gaps_in_a_row = 0
+
+
 		# for n, row in enumerate(range(min(y_coords), 20), start=0):
 		# 	# print(f"n: {n}, row: {row}")
 		# 	for col in simulated_move[row]:
