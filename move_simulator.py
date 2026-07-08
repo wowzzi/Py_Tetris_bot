@@ -1,6 +1,20 @@
 import numpy as np
 import pprint as pp
 
+part_completed_row_bonus = {
+	1: 0.8,
+	2: 0.6,
+	3: 0.4,
+	4: 0.2,
+	5: 0.1,
+	6: 0.0,
+	7: 0.0,
+	8: 0.0,
+	9: 0.0,
+	10: 0.0
+}
+
+
 class move_simulator:
 	def __init__(self):
 		self.min_score = None
@@ -92,7 +106,7 @@ class move_simulator:
 		y_coords = [position[0] for position in simulated_position]
 		x_coords = [position[1] for position in simulated_position]
 
-		y_coord_sum_score = sum([19-y for y in y_coords])
+		y_coord_sum_score = sum([(20-y)**2 for y in y_coords])
 		height_penalty = y_coord_sum_score
 
 		x_min, x_max = min(x_coords), max(x_coords)
@@ -107,12 +121,30 @@ class move_simulator:
 			col_slice = simulated_move[row:20].T[col]
 			for n, binary_no in enumerate(col_slice, start =1):
 				if binary_no == 0:
-					vertical_gap_penalty += 10 + 10/n
+					vertical_gap_penalty += 10.0 + 2.0/n
 
+			# for checking gaps on either side of the tetromino
 			row_slice = simulated_move[row][col-1:col+2]
 			for binary_no in row_slice:
 				if binary_no == 0:
-					horizontal_gap_penalty += 5
+					horizontal_gap_penalty += 5.0
+
+		# check if we complete a line
+		divisor_reward = 1
+		num_completed_rows = 1
+		unique_rows = list(set(y_coords))
+		for row in unique_rows:
+			row_slice = simulated_move[row]
+			zero_count = len(row_slice[row_slice == 0])
+
+			if zero_count == 0:
+				divisor_reward += (1.0*num_completed_rows)
+				num_completed_rows +=1.0
+
+			additional_bonus = part_completed_row_bonus.get(zero_count, 0)
+			divisor_reward += additional_bonus
+
+
 
 		# for col in range(x_min, x_max+1):
 		# 	col_heights =[]
@@ -135,7 +167,7 @@ class move_simulator:
 		# 	for col in simulated_move[row]:
 		# 		if col == 0:
 		# 			gap_penalty += 2**n
-		return height_penalty + vertical_gap_penalty + horizontal_gap_penalty
+		return (height_penalty + vertical_gap_penalty + horizontal_gap_penalty) / divisor_reward
 
 	def update_lowest_score(self, new_score, current_rotation, current_position_indexes, final_move_grid, final_move_col):
 		if self.min_score is None:
