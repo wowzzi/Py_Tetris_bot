@@ -221,6 +221,8 @@ __marimo__/
 .PNG
 *.png
 *.PNG
+*.txt
+!Pause_button_ref.png
 auto_screenshot_getter.py
 python_time_testing.py
 Tetrominoes

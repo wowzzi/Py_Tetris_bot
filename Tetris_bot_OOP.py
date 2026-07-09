@@ -18,17 +18,23 @@ import Timer_class
 
 
 class TetrisGame:
-	def __init__(self, monitor: int =0, scn_width: int=300, scn_height: int=300, mss_instance=None, fps = 8):
+	def __init__(self, monitor: int =0, scn_width: int=300, scn_height: int=300, mss_instance=None, fps: int = 8, action_timer_delay: float = 0.04):
 		self.mon_number = monitor
 		self.width = scn_width
 		self.height = scn_height
-		self.sct = mss_instance
+		if mss_instance is None:
+			self.sct = mss.MSS()
+		else:
+			self.sct = mss_instance
 		self.screen_region = {}
 		self.error_count = 0
 		self.fps = fps
 		self.time_per_frame = 1.00/self.fps
-		print(self.time_per_frame)
 		self.clock = Timer_class.timer(self.time_per_frame)
+		self.trg_handler = trg.ref_grid_handler()
+		self.move_simulator = MS.move_simulator()
+		self.setup_done = False
+		self.delay_time = action_timer_delay
 
 	def define_screen_region(self):
 			monitor = self.sct.monitors[self.mon_number]
@@ -169,7 +175,9 @@ class TetrisGame:
 				print(f"closest coords: {closest_match_coords}")
 				print(f"closest val: {closest_match_value}")
 
-		return closest_match_coords, closest_match_region
+		self.closest_coords = closest_match_coords
+		self.ref_region = closest_match_region
+
 
 	def check_ref_location(self, scrn_shot_array):
 		if hasattr(self, "ref_region"):
@@ -456,7 +464,7 @@ class TetrisGame:
 	def rotation_automate(self, rotation_score):
 		# print("rotation automation function:")
 		# print(rotation_score)
-		rotation_timer = Timer_class.timer(0.04)
+		rotation_timer = Timer_class.timer(self.delay_time)
 
 		#rotate left
 		while rotation_score < 0:
@@ -501,7 +509,8 @@ class TetrisGame:
 	def translation_automate(self, current_x, target_x):
 		move_score = target_x - current_x
 		print(f"required moves: {move_score}")
-		move_timer = Timer_class.timer(0.04)
+
+		move_timer = Timer_class.timer(self.delay_time)
 
 		while move_score > 0:
 			print("pressing right")
@@ -526,6 +535,131 @@ class TetrisGame:
 	def press_space(self):
 		kb.send(57)
 
+	def run_setup(self):
+		self.present_scn = self.convert_sct_to_array()
+		self.find_ref(ref_png_path, self.present_scn, search_resolution=2)
+		self.generate_px_grid()
+		self.generate_board_px_means()
+		self.determine_bg_col()
+		self.determine_board_state()
+		self.setup_done = True
+
+	def run_reference_check(self):
+		if hasattr(self, "present_scn"):
+			self.check_ref_location(self.present_scn)
+
+	def stage_one_image_processing(self):
+		"""
+		main screenshot processing
+
+		this stage gets a new image and converts from screenshot -> numpy array (RGBs) -> numpy array (mean RGBs) -> 2d list containing Tetris_square_objs.
+		it then sorts those objects that contains non-bg pixel means into groups of neighbours
+		it then consults those groups, and figures out which one is active based on the group length
+		if 2 groups have len 4, then we sort that by checking if any of the groups contain bottom border squares, because they cant be the active group
+		"""
+		# gets the screenshot, makes it an numpy array
+		self.present_scn = self.convert_sct_to_array()
+		self.generate_board_px_means()
+		self.determine_board_state() # makes a 2-d list filled with tetris objects from Tetris_square_obj rather than just mean rgb
+
+		# groups objects into a dict and sorts them based on proximity
+		obj_neighbour_dict = self.list_obj_neighbours_in_dict()
+		self.sorted_neighbour_dict = self.sort_obj_dict(obj_neighbour_dict)
+
+		# this is a string; key used to acess the shape data usually group4
+		self.active_tetris_group_key = self.find_active_group(self.sorted_neighbour_dict)
+
+
+	def handle_active_obj_error(self):
+		if not self.active_tetris_group_key:
+			print("couldn't find the active group")
+			self.add_error()
+			if self.error_count > 50:
+				return 1
+			else:
+				return 0
+		else:
+			self.reset_error_count()
+		return None
+
+	def stage_two_shape_characteristics(self):
+		# returns a list of objects that are currently involved with the active piece
+		self.active_tetris_objects = self.sorted_neighbour_dict.get(self.active_tetris_group_key)
+
+		# normalised coords takes the index of each object in the active group and subtracts the minimum from each dimension
+		normalised_coords = self.generate_shape_coords(self.active_tetris_objects)
+
+		# generates a 4x4 shape grid to comapre to the reference 4x4 grids so I can tell which shape it is
+		shape_grid = self.generate_shape_grid(normalised_coords)
+
+		# remember trg_handler stands for Tetromino ref grids handler (stored all the 4x4 and smaller grids for tetromino reference here)
+		self.tet_shape_key, self.rotation_id = self.trg_handler.determine_tetromino(shape_grid)
+		# minimised grid is just the smallest dimension array to hold the shape in binary. the dict contains all rotation variants
+		self.minimised_shape_dict = self.trg_handler.minimised_data.get(self.tet_shape_key)
+
+		# just a 20x10 dimensional array filled with 1's where shapes exist and 0's where they dont, inteded for simulations
+		self.binary_board_state = self.generate_binary_grid()
+
+		# setup to test if I can find a match between previous and current board states
+		# current_clean_board = move_simulator.generate_clean_binary_board(binary_board_state, active_tetris_objects)
+		# print("current cleaned board")
+		# print(current_clean_board)
+		# previous_clean_board = move_simulator.final_move_grid
+		# print("previous cleaned board")
+		# print(previous_clean_board)
+		# if current_clean_board is None or previous_clean_board is None:
+		# 	pass
+		# else:
+		# 	difference = abs(current_clean_board - previous_clean_board)
+		# 	if difference.mean() == 0:
+		# 		print("LAST MOVE ACTUALLY MATCHED THE INTENDED MOVE!!!!")
+
+	def stage_three_simulate_and_automate_moves(self):
+		# class object to handle simulated board states and produce the optimal move (he says)
+		self.move_simulator.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.minimised_shape_dict)
+		# print(f"lowest score achieved: {move_simulator.min_score}")
+		# print(f"\nfinal position rotation id: {move_simulator.rotation_id}")
+		# print(f"\nfinal positional indexes: {move_simulator.position_indexes}")
+		# print(f"\nfinal move grid: {move_simulator.final_move_grid}")
+		# printf("\nfinal move column: {move_simulator.final_move_col}"))
+
+		# need to calculate how many button presses to do the move from the current position
+		# then i will figure out how I implement that in keyboard or autogui
+
+		self.required_rotate = game_bot.calc_rotation_needed(self.rotation_id, self.move_simulator.rotation_id)
+		# print(f"required number of rotations: {self.required_rotate}")
+		self.rotation_automate(self.required_rotate)
+		self.calculate_x_translation_required(
+			self.required_rotate,
+			self.active_tetris_objects,
+			self.move_simulator.final_move_col,
+			self.tet_shape_key
+		)
+
+	def stage_four_hit_space(self, delay_seconds=0.1):
+		time.sleep(delay_seconds)
+		self.press_space()
+
+	def set_game_log_path(self):
+		game_log = Path(__file__).with_name("game_log.txt")
+		original_stem = game_log.stem
+		n = 1
+		while game_log.exists():
+			game_log = game_log.with_stem(f"{original_stem}{n}")
+			n += 1
+
+		game_log.touch()
+		self.game_log_fp = game_log
+
+	def write_to_gamelog(self, data):
+		if not hasattr(self, "game_log_fp"):
+			return
+
+		with open(self.game_log_fp, "a") as f:
+			f.write(data)
+
+
+
 
 
 
@@ -538,119 +672,69 @@ class TetrisGame:
 mss_instance = mss.MSS()
 ref_png_path = Path(__file__).with_name("Pause_button_ref.png")
 
-game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=5)
+game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=5, action_timer_delay=0.04)
 game_bot.define_screen_region()
 game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
-trg_handler = trg.ref_grid_handler()
-move_simulator = MS.move_simulator()
+game_bot.set_game_log_path()
 
-setup_done = False
+
 while True:
 	# wait for next event.
 	event = kb.read_event()
 	if event.event_type == kb.KEY_DOWN and event.name == "p":
-		game_bot.present_scn = game_bot.convert_sct_to_array()
-		game_bot.closest_coords, game_bot.ref_region = game_bot.find_ref(ref_png_path, game_bot.present_scn, search_resolution=2)
-		game_bot.generate_px_grid()
-		game_bot.generate_board_px_means()
-		# game_bot.check_ref_location(game_bot.present_scn)
-		game_bot.determine_bg_col()
-		game_bot.determine_board_state()
-		setup_done = True
+		game_bot.run_setup()
 
-	elif setup_done and event.event_type == kb.KEY_DOWN and event.name == "o":
+	elif game_bot.setup_done and event.event_type == kb.KEY_DOWN and event.name == "o":
 		print("o pressed")
+		game_bot.clock.reset()
+		game_bot.write_to_gamelog("o pressed, automation starting!\n")
+		n = 1
+		while True:
+			if game_bot.clock:
+				game_bot.stage_one_image_processing()
 
-		n = 0
-		# game_bot.clock.reset()
-		# while True:
-		#
-		# 	game_bot.clock.tick()
-		# 	if game_bot.clock:
+				# handle error if we cant find the next tetromino
+				error_code = game_bot.handle_active_obj_error()
+				if error_code == 0:
+					continue
+				elif error_code == 1:
+					break
 
-		# gets the screenshot, makes it an numpy array
-		game_bot.present_scn = game_bot.convert_sct_to_array()
-		game_bot.generate_board_px_means()
-		game_bot.determine_board_state() # makes a 2-d list filled with tetris objects from Tetris_square_obj rather than just mean rgb
+				# stage 2
+				game_bot.stage_two_shape_characteristics()
 
-		# groups objects into a dict and sorts them based on proximity
-		obj_neighbour_dict = game_bot.list_obj_neighbours_in_dict()
-		sorted_neighbour_dict = game_bot.sort_obj_dict(obj_neighbour_dict)
+				board_array_as_string = np.array2string(game_bot.binary_board_state)
+				game_bot.write_to_gamelog(f"Run {n}: board state")
+				game_bot.write_to_gamelog("\n")
+				game_bot.write_to_gamelog(board_array_as_string)
+				game_bot.write_to_gamelog("\n")
 
-		# this is a string; key used to acess the shape data usually group4
-		active_tetris_group_key = game_bot.find_active_group(sorted_neighbour_dict)
-		if not active_tetris_group_key:
-			print("couldn't find the active group")
+				# stage 3
+				game_bot.stage_three_simulate_and_automate_moves()
+				final_move_board = np.array2string(game_bot.move_simulator.final_move_grid)
+				final_move_score = game_bot.move_simulator.min_score
+				game_bot.write_to_gamelog(f"Best Move, score: {final_move_score}")
+				game_bot.write_to_gamelog("\n")
+				game_bot.write_to_gamelog(final_move_board)
+				game_bot.write_to_gamelog("\n")
 
-			game_bot.add_error()
-			if game_bot.error_count > 50:
-				break
-			# add some logic to turn off bot if 3 in a row are unable to find, probably means the user tabbed out
-			continue
-		else:
-			game_bot.reset_error_count()
-		#returns a list of objects that are currently involved with the active piece
-		active_tetris_objects = sorted_neighbour_dict.get(active_tetris_group_key)
+				# if n >= 3:
+				game_bot.stage_four_hit_space(delay_seconds=0.2)
+				# n=0
+				time.sleep(0.2)
 
-		# print(f"active tetris group: {active_tetris_group_key}")
-		# for obj in active_tetris_objects:
-		# 	print(f"Object ID: {obj}"
-		# 		  f"\nObject index: {obj.index}")
+				#
+				game_bot.write_to_gamelog("#"*100)
+				game_bot.write_to_gamelog("\n")
+				game_bot.write_to_gamelog("#"*100)
+				game_bot.write_to_gamelog("\n")
+				n+=1
 
-		# normalised coords takes the index of each object in the active group and subtracts the minimum from each dimension
-		normalised_coords = game_bot.generate_shape_coords(active_tetris_objects)
-		# generates a 4x4 shape grid to comapre to the reference 4x4 grids so I can tell which shape it is
-		shape_grid = game_bot.generate_shape_grid(normalised_coords)
-
-		# remember trg_handler stands for Tetromino ref grids handler (stored all the 4x4 and smaller grids for tetromino reference here)
-		tet_shape_key, rotation_id = trg_handler.determine_tetromino(shape_grid)
-		# minimised grid is just the smallest dimension array to hold the shape in binary
-		minimised_shape_dict = trg_handler.minimised_data.get(tet_shape_key)
-
-		# just a 20x10 dimensional array filled with 1's where shapes exist and 0's where they dont, inteded for simulations
-		binary_board_state = game_bot.generate_binary_grid()
-
-		# setup to test if I can find a match between previous and current board states
-		current_clean_board = move_simulator.generate_clean_binary_board(binary_board_state, active_tetris_objects)
-		# print("current cleaned board")
-		# print(current_clean_board)
-		previous_clean_board = move_simulator.final_move_grid
-		# print("previous cleaned board")
-		# print(previous_clean_board)
-		if current_clean_board is None or previous_clean_board is None:
-			pass
-		else:
-			difference = abs(current_clean_board - previous_clean_board)
-			if difference.mean() == 0:
-				print("LAST MOVE ACTUALLY MATCHED THE INTENDED MOVE!!!!")
-
-		# class object to handle simulated board states and produce the optimal move
-		move_simulator.simulate_moves(binary_board_state, active_tetris_objects, minimised_shape_dict)
-		# print(f"lowest score achieved: {move_simulator.min_score}")
-		# print(f"\nfinal position rotation id: {move_simulator.rotation_id}")
-		# print(f"\nfinal positional indexes: {move_simulator.position_indexes}")
-		# print(f"\nfinal move grid: {move_simulator.final_move_grid}")
-		# printf("\nfinal move column: {move_simulator.final_move_col}"))
+				game_bot.clock.reset()
+				print("o ran")
+			game_bot.clock.tick()
 
 
-		# need to calculate how many button presses to do the move from the current position
-		# then i will figure out how I implement that in keyboard or autogui
-
-		required_rotate = game_bot.calc_rotation_needed(rotation_id, move_simulator.rotation_id)
-		print(f"required number of rotations: {required_rotate}")
-		game_bot.rotation_automate(required_rotate)
-		game_bot.calculate_x_translation_required(required_rotate, active_tetris_objects, move_simulator.final_move_col, tet_shape_key)
-
-		# if n >= 3:
-		time.sleep(0.2)
-		game_bot.press_space()
-			# n=0
-		# n+=1
-		# time.sleep(0.2)
-		# game_bot.clock.reset()
-		print("o ran")
-
-# thoughts from last session is that the keyboard keypresses are too fast, use time module to add a delay
 
 	elif event.event_type == kb.KEY_DOWN and event.name == "q":
 		break
