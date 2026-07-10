@@ -94,19 +94,11 @@ class ref_grid_handler:
 		designed for shape 4x4 but only requires shape to be equal
 		"""
 		difference = input_array - reference_array
-		difference = difference.flatten()
-
-		is_result_equal = False
-		for value in difference:
-			if value == 0:
-				is_result_equal = True
-			else:
-				is_result_equal = False
-				break
-		return is_result_equal
-
-
-
+		difference = difference[difference!=0]
+		if len(difference) > 0:
+			return False
+		else:
+			return True
 
 if __name__ == "__main__":
 	for key, array in ref_grids.items():

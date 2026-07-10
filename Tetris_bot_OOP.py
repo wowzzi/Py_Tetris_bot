@@ -273,50 +273,6 @@ class TetrisGame:
 					active_objs.append(obj)
 		return active_objs
 
-	def infect_neighbours(self, neighbouring_objs, result: list = None, iteration = 0):
-		print(iteration)
-		iteration += 1
-		print(f"neighbours objects: {neighbouring_objs}")
-		print(f"current result list: {result}")
-		if result is None:
-			infected_list = []
-		else:
-			infected_list = result
-		print(f"infected list: {infected_list}")
-		neighbouring_objs = [obj for obj in neighbouring_objs if not obj.is_static]
-		print(f"neighbours objects (after purging): {neighbouring_objs}")
-
-		for obj in neighbouring_objs:
-			obj.is_static = True
-		if len(neighbouring_objs) > 1:
-			print("re-running the recursion")
-			for n, obj in enumerate(neighbouring_objs, start=0):
-				print(f"loop {n} for neighbours")
-				infected_list.extend(self.infect_neighbours(obj.return_active_neighbours(), result = infected_list, iteration=iteration))
-
-		else:
-			print("len objects is 0 so returning the list of objects now")
-		return infected_list
-
-
-
-	def determine_if_static(self, active_objs):
-		border_pieces = [obj for obj in active_objs if obj.is_bottom_border]
-		if len(border_pieces) < 1:
-			print(f"all current pieces are active (one shape on screen)"
-				  f"\nthose squares are at: ")
-			for obj in active_objs:
-				print(obj.index)
-		else:
-			for piece in border_pieces:
-				#infect connected pieces
-				piece.is_static = True
-
-				connected_pieces = piece.return_active_neighbours()
-				while len(connected_pieces) > 0:
-					for neighbour in connected_pieces:
-						neighbour.is_static = True
-
 	def list_obj_neighbours_in_dict(self):
 		"""
 		gets all non background objects in the current self.tetris_obj_grid.
@@ -418,8 +374,11 @@ class TetrisGame:
 			for elimination_key in eliminated_list:
 				sorting_dict.pop(elimination_key)
 
-			active_key = list(sorting_dict.keys())[0]
-
+			active_keys = list(sorting_dict.keys())
+			if len(active_keys) == 0:
+				active_key = None
+			else:
+				active_key = list(sorting_dict.keys())[0]
 
 		return active_key
 
@@ -437,16 +396,13 @@ class TetrisGame:
 		normalised_indexes = []
 		for index in indexes:
 			normalised_indexes.append(index - min_array)
-
 		normalised_indexes = np.array(normalised_indexes)
-
 		return normalised_indexes
 
 	def generate_shape_grid(self, shape_coordinates):
 		shaped_array = np.zeros((4,4))
 		for coord in shape_coordinates:
 			shaped_array[coord[0], coord[1]] = 1
-
 		return shaped_array
 
 	def generate_binary_grid(self) -> np.ndarray:
@@ -462,12 +418,9 @@ class TetrisGame:
 		return rotation_id_final - rotation_id_current
 
 	def rotation_automate(self, rotation_score):
-		# print("rotation automation function:")
-		# print(rotation_score)
 		rotation_timer = Timer_class.timer(self.delay_time)
-
-		#rotate left
 		while rotation_score < 0:
+		# rotate left
 			print("pressing z")
 			kb.send('z')
 			rotation_score += 1
@@ -492,7 +445,6 @@ class TetrisGame:
 	def calculate_x_translation_required(self, rotation_score, current_active_objs, target_column, piece_id):
 		current_min_x = min([obj.index[1] for obj in current_active_objs])
 		x_offset = 0
-
 		if rotation_score == 0:
 			pass
 		else:
@@ -569,7 +521,6 @@ class TetrisGame:
 		# this is a string; key used to acess the shape data usually group4
 		self.active_tetris_group_key = self.find_active_group(self.sorted_neighbour_dict)
 
-
 	def handle_active_obj_error(self):
 		if not self.active_tetris_group_key:
 			print("couldn't find the active group")
@@ -617,22 +568,27 @@ class TetrisGame:
 	def stage_three_simulate_and_automate_moves(self):
 		# class object to handle simulated board states and produce the optimal move (he says)
 		self.move_simulator.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.minimised_shape_dict)
-		# print(f"lowest score achieved: {move_simulator.min_score}")
-		# print(f"\nfinal position rotation id: {move_simulator.rotation_id}")
-		# print(f"\nfinal positional indexes: {move_simulator.position_indexes}")
-		# print(f"\nfinal move grid: {move_simulator.final_move_grid}")
-		# printf("\nfinal move column: {move_simulator.final_move_col}"))
+		self.move_simulator.find_best_move()
 
-		# need to calculate how many button presses to do the move from the current position
-		# then i will figure out how I implement that in keyboard or autogui
+		best_move_obj = self.move_simulator.best_move
 
-		self.required_rotate = game_bot.calc_rotation_needed(self.rotation_id, self.move_simulator.rotation_id)
-		# print(f"required number of rotations: {self.required_rotate}")
+		# best_move_obj is a class called stored_move, (more of a struct tbh)
+		# with attributes:
+		# 				 	rotation_id: int,
+		# 				 	position_indexes: list,
+		# 				 	final_move_grid: np.ndarray,
+		# 				 	height_score: int,
+		# 				 	blockage_score: int,
+		# 				 	rows_cleared: int
+		#					min_x: int
+
+
+		self.required_rotate = game_bot.calc_rotation_needed(self.rotation_id, best_move_obj.rotation_id)
 		self.rotation_automate(self.required_rotate)
 		self.calculate_x_translation_required(
 			self.required_rotate,
 			self.active_tetris_objects,
-			self.move_simulator.final_move_col,
+			best_move_obj.min_x,
 			self.tet_shape_key
 		)
 
@@ -659,12 +615,6 @@ class TetrisGame:
 			f.write(data)
 
 
-
-
-
-
-
-
 ######################
 #### Script Start ####
 ######################
@@ -676,7 +626,6 @@ game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=ms
 game_bot.define_screen_region()
 game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
 game_bot.set_game_log_path()
-
 
 while True:
 	# wait for next event.
@@ -691,11 +640,13 @@ while True:
 		n = 1
 		while True:
 			if game_bot.clock:
+				# stage 1
 				game_bot.stage_one_image_processing()
 
 				# handle error if we cant find the next tetromino
 				error_code = game_bot.handle_active_obj_error()
 				if error_code == 0:
+					game_bot.clock.reset()
 					continue
 				elif error_code == 1:
 					break
@@ -711,9 +662,31 @@ while True:
 
 				# stage 3
 				game_bot.stage_three_simulate_and_automate_moves()
-				final_move_board = np.array2string(game_bot.move_simulator.final_move_grid)
-				final_move_score = game_bot.move_simulator.min_score
-				game_bot.write_to_gamelog(f"Best Move, score: {final_move_score}")
+				for sim_no, obj in  enumerate(game_bot.move_simulator.simulated_move_objects, start =1):
+					game_bot.write_to_gamelog("\n")
+					game_bot.write_to_gamelog(f"simulation {sim_no}")
+					game_bot.write_to_gamelog("\n")
+					game_bot.write_to_gamelog(f"rotation id: {obj.rotation_id}")
+					game_bot.write_to_gamelog("\n")
+					game_bot.write_to_gamelog(f"indexes for each square in the sim: {obj.position_indexes}")
+					game_bot.write_to_gamelog("\n")
+					game_bot.write_to_gamelog(f"column index: {obj.min_x}")
+					game_bot.write_to_gamelog("\n")
+					game_bot.write_to_gamelog(f"height score: {obj.height_score}")
+					game_bot.write_to_gamelog("\n")
+					game_bot.write_to_gamelog(f"blockage_score: {obj.blockage_score}")
+					game_bot.write_to_gamelog("\n")
+					game_bot.write_to_gamelog(f"rows_cleared: {obj.rows_cleared}")
+					game_bot.write_to_gamelog("\n")
+					game_bot.write_to_gamelog(f"simulated grid: {np.array2string(obj.final_move_grid)}")
+
+				game_bot.write_to_gamelog("\n")
+				game_bot.write_to_gamelog(f"BEST rotation ID: {game_bot.move_simulator.best_move.rotation_id}")
+				game_bot.write_to_gamelog("\n")
+				game_bot.write_to_gamelog(f"BEST column: {game_bot.move_simulator.best_move.min_x}")
+				game_bot.write_to_gamelog("\n")
+				final_move_board = np.array2string(game_bot.move_simulator.best_move.final_move_grid)
+				game_bot.write_to_gamelog("final simulated board layout")
 				game_bot.write_to_gamelog("\n")
 				game_bot.write_to_gamelog(final_move_board)
 				game_bot.write_to_gamelog("\n")
@@ -739,5 +712,14 @@ while True:
 	elif event.event_type == kb.KEY_DOWN and event.name == "q":
 		break
 
-
-
+# error from the end of last session
+"""
+Traceback (most recent call last):
+  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\Tetris_bot_OOP.py", line 640, in <module>
+    game_bot.stage_one_image_processing()
+  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\Tetris_bot_OOP.py", line 518, in stage_one_image_processing
+    self.active_tetris_group_key = self.find_active_group(self.sorted_neighbour_dict)
+  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\Tetris_bot_OOP.py", line 377, in find_active_group
+    active_key = list(sorting_dict.keys())[0]
+IndexError: list index out of range
+"""
