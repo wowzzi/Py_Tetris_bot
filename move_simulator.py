@@ -54,7 +54,8 @@ class move_simulator:
 			for x_offset in range(shape_dimensions[1]):
 				current_grid_val = simulation_grid[start_y + y_offset][start_x + x_offset]
 				simulation_grid[start_y + y_offset][start_x + x_offset] = current_grid_val + shape_array[y_offset][x_offset]
-				sim_pos_indexes.append((start_y + y_offset, start_x + x_offset))
+				if shape_array[y_offset][x_offset] == 1:
+					sim_pos_indexes.append((start_y + y_offset, start_x + x_offset))
 
 		return simulation_grid, sim_pos_indexes
 
@@ -74,19 +75,19 @@ class move_simulator:
 			5000,
 			0
 			)
-		active_sim_indexes = [index for index in simulated_indexes if simulated_grid[index] == 1]
-		y_coords = [position[0] for position in active_sim_indexes]
+
+		y_coords = [position[0] for position in simulated_indexes]
 		height_score = sum([(20-y) for y in y_coords])
 
 		# print(f"range from min y_coords to 20: {list(range(min(y_coords), 20))}")
 		# check for gaps created directly below the simulated move pieces
 		blockage_score = 0
 
-		for row, col in active_sim_indexes:
+		for row, col in simulated_indexes:
 			if row + 1 < len(simulated_grid):
 				cell_below = simulated_grid[row+1][col]
 				if cell_below == 0:
-					blockage_score += 100
+					blockage_score += 1
 
 		# check if we complete any lines
 		num_completed_rows = 0
