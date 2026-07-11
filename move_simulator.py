@@ -20,8 +20,8 @@ class move_simulator:
 		# shapes data is a dict with 1 - 4 keys all integers.
 		# each key holds another rotation variant of the current shape.
 		# simulate with each rotation from the top down.
-		previous_move = None
-		previous_position = None
+		prev_sim_grid = None
+		prev_sim_pos_indexes = None
 		for rotation_id, shape_array in shapes_data.items():
 			shape_height, shape_width = shape_array.shape
 			# print(f"\nrotation variant: {rotation_id}\n{shape_array}")
@@ -74,14 +74,15 @@ class move_simulator:
 			5000,
 			0
 			)
-		y_coords = [position[0] for position in simulated_indexes]
+		active_sim_indexes = [index for index in simulated_indexes if simulated_grid[index] == 1]
+		y_coords = [position[0] for position in active_sim_indexes]
 		height_score = sum([(20-y) for y in y_coords])
 
 		# print(f"range from min y_coords to 20: {list(range(min(y_coords), 20))}")
 		# check for gaps created directly below the simulated move pieces
 		blockage_score = 0
-		active_sim_indexes = [index for index in simulated_indexes]
-		for row, col in simulated_indexes:
+
+		for row, col in active_sim_indexes:
 			if row + 1 < len(simulated_grid):
 				cell_below = simulated_grid[row+1][col]
 				if cell_below == 0:
@@ -160,7 +161,8 @@ class stored_move:
 				 ):
 		self.rotation_id = rotation_id
 		self.position_indexes = position_indexes
-		self.min_x = min([position[1] for position in self.position_indexes])
+		if self.position_indexes:
+			self.min_x = min([position[1] for position in self.position_indexes])
 		self.final_move_grid = final_move_grid
 		self.height_score = height_score
 		self.blockage_score = blockage_score

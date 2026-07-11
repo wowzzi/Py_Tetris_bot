@@ -525,7 +525,7 @@ class TetrisGame:
 		if not self.active_tetris_group_key:
 			print("couldn't find the active group")
 			self.add_error()
-			if self.error_count > 50:
+			if self.error_count > 20:
 				return 1
 			else:
 				return 0
@@ -636,7 +636,7 @@ while True:
 	elif game_bot.setup_done and event.event_type == kb.KEY_DOWN and event.name == "o":
 		print("o pressed")
 		game_bot.clock.reset()
-		game_bot.write_to_gamelog("o pressed, automation starting!\n")
+		log_string = "o pressed, automation starting!\n"
 		n = 1
 		while True:
 			if game_bot.clock:
@@ -655,41 +655,42 @@ while True:
 				game_bot.stage_two_shape_characteristics()
 
 				board_array_as_string = np.array2string(game_bot.binary_board_state)
-				game_bot.write_to_gamelog(f"Run {n}: board state")
-				game_bot.write_to_gamelog("\n")
-				game_bot.write_to_gamelog(board_array_as_string)
-				game_bot.write_to_gamelog("\n")
+				log_string = log_string + f"Run {n}: board state"
+
+				log_string = log_string +"\n"
+				log_string = log_string + board_array_as_string
+				log_string = log_string +"\n"
 
 				# stage 3
 				game_bot.stage_three_simulate_and_automate_moves()
 				for sim_no, obj in  enumerate(game_bot.move_simulator.simulated_move_objects, start =1):
-					game_bot.write_to_gamelog("\n")
-					game_bot.write_to_gamelog(f"simulation {sim_no}")
-					game_bot.write_to_gamelog("\n")
-					game_bot.write_to_gamelog(f"rotation id: {obj.rotation_id}")
-					game_bot.write_to_gamelog("\n")
-					game_bot.write_to_gamelog(f"indexes for each square in the sim: {obj.position_indexes}")
-					game_bot.write_to_gamelog("\n")
-					game_bot.write_to_gamelog(f"column index: {obj.min_x}")
-					game_bot.write_to_gamelog("\n")
-					game_bot.write_to_gamelog(f"height score: {obj.height_score}")
-					game_bot.write_to_gamelog("\n")
-					game_bot.write_to_gamelog(f"blockage_score: {obj.blockage_score}")
-					game_bot.write_to_gamelog("\n")
-					game_bot.write_to_gamelog(f"rows_cleared: {obj.rows_cleared}")
-					game_bot.write_to_gamelog("\n")
-					game_bot.write_to_gamelog(f"simulated grid: {np.array2string(obj.final_move_grid)}")
+					log_string = log_string +"\n"
+					log_string = log_string +f"simulation {sim_no}"
+					log_string = log_string +"\n"
+					log_string = log_string +f"rotation id: {obj.rotation_id}"
+					log_string = log_string +"\n"
+					log_string = log_string +f"indexes for each square in the sim: {obj.position_indexes}"
+					log_string = log_string +"\n"
+					log_string = log_string +f"column index: {obj.min_x}"
+					log_string = log_string +"\n"
+					log_string = log_string +f"height score: {obj.height_score}"
+					log_string = log_string +"\n"
+					log_string = log_string +f"blockage_score: {obj.blockage_score}"
+					log_string = log_string +"\n"
+					log_string = log_string +f"rows_cleared: {obj.rows_cleared}"
+					log_string = log_string +"\n"
+					log_string = log_string +f"simulated grid: {np.array2string(obj.final_move_grid)}"
 
-				game_bot.write_to_gamelog("\n")
-				game_bot.write_to_gamelog(f"BEST rotation ID: {game_bot.move_simulator.best_move.rotation_id}")
-				game_bot.write_to_gamelog("\n")
-				game_bot.write_to_gamelog(f"BEST column: {game_bot.move_simulator.best_move.min_x}")
-				game_bot.write_to_gamelog("\n")
+				log_string = log_string +"\n"
+				log_string = log_string +f"BEST rotation ID: {game_bot.move_simulator.best_move.rotation_id}"
+				log_string = log_string +"\n"
+				log_string = log_string +f"BEST column: {game_bot.move_simulator.best_move.min_x}"
+				log_string = log_string +"\n"
 				final_move_board = np.array2string(game_bot.move_simulator.best_move.final_move_grid)
-				game_bot.write_to_gamelog("final simulated board layout")
-				game_bot.write_to_gamelog("\n")
-				game_bot.write_to_gamelog(final_move_board)
-				game_bot.write_to_gamelog("\n")
+				log_string = log_string + "final simulated board layout"
+				log_string = log_string +"\n"
+				log_string = log_string +final_move_board
+				log_string = log_string +"\n"
 
 				# if n >= 3:
 				game_bot.stage_four_hit_space(delay_seconds=0.2)
@@ -697,10 +698,11 @@ while True:
 				time.sleep(0.2)
 
 				#
-				game_bot.write_to_gamelog("#"*100)
-				game_bot.write_to_gamelog("\n")
-				game_bot.write_to_gamelog("#"*100)
-				game_bot.write_to_gamelog("\n")
+				log_string = log_string +"#"*100
+				log_string = log_string +"\n"
+				log_string = log_string +"#"*100
+				log_string = log_string +"\n"
+				game_bot.write_to_gamelog(log_string)
 				n+=1
 
 				game_bot.clock.reset()
@@ -712,14 +714,17 @@ while True:
 	elif event.event_type == kb.KEY_DOWN and event.name == "q":
 		break
 
-# error from the end of last session
 """
 Traceback (most recent call last):
-  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\Tetris_bot_OOP.py", line 640, in <module>
-    game_bot.stage_one_image_processing()
-  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\Tetris_bot_OOP.py", line 518, in stage_one_image_processing
-    self.active_tetris_group_key = self.find_active_group(self.sorted_neighbour_dict)
-  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\Tetris_bot_OOP.py", line 377, in find_active_group
-    active_key = list(sorting_dict.keys())[0]
-IndexError: list index out of range
+  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\Tetris_bot_OOP.py", line 665, in <module>
+    game_bot.stage_three_simulate_and_automate_moves()
+  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\Tetris_bot_OOP.py", line 570, in stage_three_simulate_and_automate_moves
+    self.move_simulator.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.minimised_shape_dict)
+  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\move_simulator.py", line 37, in simulate_moves
+    self.simulated_move_objects.append(self.calculate_move_score(final_grid, final_indexes, rotation_id))
+  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\move_simulator.py", line 69, in calculate_move_score
+    return stored_move(
+  File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\move_simulator.py", line 164, in __init__
+    self.min_x = min([position[1] for position in self.position_indexes])
+TypeError: 'NoneType' object is not iterable
 """
