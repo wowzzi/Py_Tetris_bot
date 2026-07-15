@@ -83,6 +83,7 @@ class move_simulator:
 		# check for gaps created directly below the simulated move pieces
 		blockage_score = 0
 
+
 		for row, col in simulated_indexes:
 			if row + 1 < len(simulated_grid):
 				cell_below = simulated_grid[row+1][col]
@@ -102,7 +103,7 @@ class move_simulator:
 			simulated_grid,
 			height_score,
 			blockage_score,
-			num_completed_rows
+			num_completed_rows,
 		)
 		return move_obj
 
@@ -158,7 +159,7 @@ class stored_move:
 				 final_move_grid: np.ndarray,
 				 height_score: int,
 				 blockage_score: int,
-				 rows_cleared: int
+				 rows_cleared: int,
 				 ):
 		self.rotation_id = rotation_id
 		self.position_indexes = position_indexes

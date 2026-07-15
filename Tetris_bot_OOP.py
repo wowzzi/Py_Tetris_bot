@@ -3,7 +3,7 @@ from PIL import Image
 import mss
 from mss import tools
 import numpy as np
-# from numpy.lib.recfunctions import structured_to_unstructured
+
 
 import tetris_helper_funcs as tf
 import keyboard as kb
@@ -181,14 +181,46 @@ class TetrisGame:
 		self.ref_region = closest_match_region
 
 
-	def check_ref_location(self, scrn_shot_array):
+	def check_ref_location(self, show:bool=False, save:bool=False, cycle:bool=False, adjustment:bool=False):
+		if cycle:
+			self.present_scn = self.convert_sct_to_array()
+			reference_game_screen = Image.open(ref_png_path)
+			ref_data = np.asarray(reference_game_screen)
+			self.ref_region = tf.sub_fractionate_3d_array(self.present_scn, ref_data, start_row=self.closest_coords[0], start_col=self.closest_coords[1])
+
 		if hasattr(self, "ref_region"):
 			ref_region = getattr(self, "ref_region")
 			ref_region[:,:] = [255, 0, 0]
+		else:
+			return
 		if hasattr(self,"pixel_grid"):
-			scrn_shot_array[self.pixel_grid[:, :, 1], self.pixel_grid[:, :, 0]] = [255,0,0]
-		calibrated_img = Image.fromarray(scrn_shot_array)
-		calibrated_img.show()
+			self.present_scn[self.pixel_grid[:, :, 1], self.pixel_grid[:, :, 0]] = [255,0,0]
+		else:
+			return
+
+		if adjustment:
+			x_offset = int(input("x offset: "))
+			y_offset = int(input("y offset: "))
+			_with_offset_x = self.closest_coords[1] + x_offset
+			_with_offset_y = self.closest_coords[0] + y_offset
+			target_px_tup = (_with_offset_y, _with_offset_x)
+
+
+			print(f"target px coord: {target_px_tup}")
+			print(self.present_scn[target_px_tup])
+			self.present_scn[target_px_tup] = [255, 0, 0]
+
+		calibrated_img = Image.fromarray(self.present_scn)
+		if show:
+			calibrated_img.show()
+		if save:
+			img_fp = Path(__file__).with_name("cal_img.png")
+			original_stem = img_fp.stem
+			n = 1
+			while img_fp.exists():
+				img_fp = img_fp.with_stem(f"{original_stem}{n}")
+				n += 1
+			calibrated_img.save(img_fp)
 
 	def set_grid_dims(self, x_rel_offset=0, y_rel_offset=0, grid_px_width=10, grid_px_height=10):
 		self.grid_x_offset = x_rel_offset
@@ -498,9 +530,9 @@ class TetrisGame:
 		self.determine_board_state()
 		self.setup_done = True
 
-	def run_reference_check(self):
+	def run_reference_check(self, show:bool=False, save:bool=False, cycle:bool=False, adjustment:bool=False):
 		if hasattr(self, "present_scn"):
-			self.check_ref_location(self.present_scn)
+			self.check_ref_location(show=show, save=save, cycle=cycle, adjustment=adjustment)
 
 	def stage_one_image_processing(self):
 		"""
@@ -617,11 +649,13 @@ class TetrisGame:
 mss_instance = mss.MSS()
 ref_png_path = Path(__file__).with_name("Pause_button_ref.png")
 
-game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=10, action_timer_delay=0.03)
+game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=12, action_timer_delay=0.02)
 game_bot.define_screen_region()
 game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
-game_bot.set_game_log_path()
 game_bot.debug_mode = False
+if game_bot.debug_mode:
+	game_bot.set_game_log_path()
+
 
 while True:
 	# wait for next event.
@@ -652,6 +686,7 @@ while True:
 						game_bot.write_to_gamelog(log_string)
 					continue
 				elif error_code == 1:
+					print("Automated loop end")
 					break
 
 				# stage 2
@@ -699,7 +734,7 @@ while True:
 				game_bot.stage_four_hit_space(delay_seconds=0.03)
 				# n=0
 				# previous = 0.2
-				time.sleep(0.01)
+				# time.sleep(0.01)
 
 				if game_bot.debug_mode:
 					log_string = log_string + "\n"
@@ -733,6 +768,9 @@ while True:
 
 	elif event.event_type == kb.KEY_DOWN and event.name == "q":
 		break
+
+	elif event.event_type == kb.KEY_DOWN and event.name == "u":
+		game_bot.run_reference_check(save=True, show=False, cycle=True, adjustment=True)
 
 # """
 # Traceback (most recent call last):
