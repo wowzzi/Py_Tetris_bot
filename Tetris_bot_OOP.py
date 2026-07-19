@@ -37,6 +37,7 @@ class TetrisGame:
 		self.delay_time = action_timer_delay
 		self.debug_mode = False
 		self.expected_n_sqs = 0
+		self.total_lines_cleared = 0
 
 	def define_screen_region(self):
 			monitor = self.sct.monitors[self.mon_number]
@@ -204,6 +205,7 @@ class TetrisGame:
 			_with_offset_x = self.closest_coords[1] + x_offset
 			_with_offset_y = self.closest_coords[0] + y_offset
 			target_px_tup = (_with_offset_y, _with_offset_x)
+			print(type(self.closest_coords))
 
 
 			print(f"target px coord: {target_px_tup}")
@@ -237,6 +239,9 @@ class TetrisGame:
 		x_y_mesh = np.stack(x_y_mesh, axis=-1)
 		inverted_xy_arr = np.flipud(x_y_mesh)
 		self.pixel_grid = np.fliplr(inverted_xy_arr)
+		self.next_pixel_coord = self.closest_coords + np.array([-375, -51])
+
+
 
 	def generate_board_px_means(self):
 		if not hasattr(self, "pixel_grid"):
@@ -521,6 +526,18 @@ class TetrisGame:
 	def press_space(self):
 		kb.send(57)
 
+	def press_left(self):
+		kb.send(75)
+
+	def press_right(self):
+		kb.send(77)
+
+	def press_z(self):
+		kb.send("z")
+
+	def press_up(self):
+		kb.send(72)
+
 	def run_setup(self):
 		self.present_scn = self.convert_sct_to_array()
 		self.find_ref(ref_png_path, self.present_scn, search_resolution=2)
@@ -641,6 +658,12 @@ class TetrisGame:
 		with open(self.game_log_fp, "a") as f:
 			f.write(data)
 
+	def reset_game(self):
+		self.total_lines_cleared = 0
+		self.expected_n_sqs = 0
+		self.error_count = 0
+		self.clock.reset()
+
 
 ######################
 #### Script Start ####
@@ -652,7 +675,7 @@ ref_png_path = Path(__file__).with_name("Pause_button_ref.png")
 game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=12, action_timer_delay=0.02)
 game_bot.define_screen_region()
 game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
-game_bot.debug_mode = False
+game_bot.debug_mode = True
 if game_bot.debug_mode:
 	game_bot.set_game_log_path()
 
@@ -665,10 +688,10 @@ while True:
 
 	elif game_bot.setup_done and event.event_type == kb.KEY_DOWN and event.name == "o":
 		print("o pressed")
-		game_bot.clock.reset()
+		game_bot.reset_game()
 		if game_bot.debug_mode:
 			log_string = "o pressed, automation starting!\n"
-		n = 1
+			n = 1
 		while True:
 			if game_bot.clock:
 				if game_bot.debug_mode:
@@ -683,6 +706,10 @@ while True:
 					if game_bot.debug_mode:
 						log_string = log_string + f"Couldn't find the active group"
 						log_string = log_string + "\n"
+						board_array_as_string = np.array2string(game_bot.binary_board_state)
+						log_string = log_string + board_array_as_string
+						log_string = log_string + "\n"
+
 						game_bot.write_to_gamelog(log_string)
 					continue
 				elif error_code == 1:
@@ -694,6 +721,9 @@ while True:
 					game_bot.clock.quick_reset(speed_factor = 0.8)
 					if game_bot.debug_mode:
 						log_string = log_string + f"Board not fully reset - n squares was same as expected"
+						log_string = log_string + "\n"
+						board_array_as_string = np.array2string(game_bot.binary_board_state)
+						log_string = log_string + board_array_as_string
 						log_string = log_string + "\n"
 						game_bot.write_to_gamelog(log_string)
 					continue
@@ -731,7 +761,9 @@ while True:
 
 				# if n >= 3:
 				# previous = 0.2
-				game_bot.stage_four_hit_space(delay_seconds=0.03)
+				# if game_bot.total_lines_cleared < 110:
+				game_bot.stage_four_hit_space(delay_seconds=0.02)
+				game_bot.total_lines_cleared += game_bot.move_simulator.best_move.rows_cleared
 				# n=0
 				# previous = 0.2
 				# time.sleep(0.01)
@@ -758,7 +790,7 @@ while True:
 					log_string = log_string +"#"*100
 					log_string = log_string +"\n"
 					game_bot.write_to_gamelog(log_string)
-				n+=1
+					n+=1
 
 				game_bot.clock.reset()
 				# print("o ran")
@@ -770,19 +802,4 @@ while True:
 		break
 
 	elif event.event_type == kb.KEY_DOWN and event.name == "u":
-		game_bot.run_reference_check(save=True, show=False, cycle=True, adjustment=True)
-
-# """
-# Traceback (most recent call last):
-#   File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\Tetris_bot_OOP.py", line 665, in <module>
-#     game_bot.stage_three_simulate_and_automate_moves()
-#   File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\Tetris_bot_OOP.py", line 570, in stage_three_simulate_and_automate_moves
-#     self.move_simulator.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.minimised_shape_dict)
-#   File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\move_simulator.py", line 37, in simulate_moves
-#     self.simulated_move_objects.append(self.calculate_move_score(final_grid, final_indexes, rotation_id))
-#   File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\move_simulator.py", line 69, in calculate_move_score
-#     return stored_move(
-#   File "C:\Users\willd\PycharmProjects\Tetris_bot_git_repo\Py_Tetris_bot\move_simulator.py", line 164, in __init__
-#     self.min_x = min([position[1] for position in self.position_indexes])
-# TypeError: 'NoneType' object is not iterable
-# """
+		game_bot.run_reference_check(save=True, show=True, cycle=True, adjustment=True)

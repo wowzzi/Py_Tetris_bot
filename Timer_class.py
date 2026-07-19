@@ -32,3 +32,14 @@ class timer:
 			speed_factor = 0.0
 		self.previous_time = time.perf_counter()
 		self.delta_time = self.finish_time * speed_factor
+
+
+if __name__ == '__main__':
+	test_timer = timer(1)
+	n=0
+	while True:
+		test_timer.tick()
+		if test_timer:
+			n+=1
+			print(f"seconds: {n}")
+			test_timer.reset()
