@@ -110,29 +110,3 @@ if __name__ == "__main__":
 		print(f"current key: {key}")
 		for index, value in array.items():
 			print(f"{index})\n{value}")
-
-
-
-	# array_a = np.array([1,0,0])
-	# array_b = np.array([0,1,0])
-	# array_c = np.array([0,0,1])
-	# array_d = np.array([1,0,0])
-	#
-	# array_sub = array_a - array_b
-	# print(array_sub)
-	# print(array_sub.all(axis=-1, where=1))
-	# print(array_sub.all(axis=-1, where=0))
-	#
-	# array_sub = array_a - array_d
-	# print(array_sub)
-	# print(array_sub.all(axis=-1, where=1))
-	# print(array_sub.all(axis=-1, where=0))
-	#
-	# equal = False
-	# for val in array_sub:
-	# 	if not val == 0:
-	# 		equal = False
-	# 		break
-	# 	else:
-	# 		equal = True
-	# print(equal)

@@ -8,9 +8,6 @@ def sub_fractionate_3d_array(input_array: np.array,
 	ref_height, ref_width, _ = reference_array.shape
 	return input_array[start_row:start_row + ref_height, start_col:start_col + ref_width]
 
-
-
-
 def add_iterables(input_iterable, other) -> tuple:
 	output = []
 	if isinstance(other, int):

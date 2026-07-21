@@ -16,8 +16,6 @@ class tetris_square:
 		self.is_static = True
 		self.is_bg = True
 
-
-
 		self.neighbour_idx = {
 			'above': self.index + [-1, 0],
 			'below': self.index + [1, 0],
@@ -109,9 +107,3 @@ class tetris_square:
 				non_bg_obj_neighbours.append(right)
 
 		return non_bg_obj_neighbours
-
-
-
-
-
-

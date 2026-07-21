@@ -1,7 +1,6 @@
 import numpy as np
 import pprint as pp
 
-
 class move_simulator:
 	def __init__(self):
 		self.best_move = None

@@ -3,8 +3,6 @@ from PIL import Image
 import mss
 from mss import tools
 import numpy as np
-
-
 import tetris_helper_funcs as tf
 import keyboard as kb
 import pprint as pp
@@ -13,9 +11,6 @@ import Tetris_square_obj as Tetob
 import Tetromino_ref_grids as trg
 import move_simulator as MS
 import Timer_class
-
-
-
 
 class TetrisGame:
 	def __init__(self, monitor: int =0, scn_width: int=300, scn_height: int=300, mss_instance=None, fps: int = 8, action_timer_delay: float = 0.04):
@@ -33,11 +28,13 @@ class TetrisGame:
 		self.clock = Timer_class.timer(self.time_per_frame)
 		self.trg_handler = trg.ref_grid_handler()
 		self.move_simulator = MS.move_simulator()
+		self.hold_move_sim = MS.move_simulator()
 		self.setup_done = False
 		self.delay_time = action_timer_delay
 		self.debug_mode = False
 		self.expected_n_sqs = 0
 		self.total_lines_cleared = 0
+		self.hold_piece = None
 
 	def define_screen_region(self):
 			monitor = self.sct.monitors[self.mon_number]
@@ -538,6 +535,9 @@ class TetrisGame:
 	def press_up(self):
 		kb.send(72)
 
+	def press_c(self):
+		kb.send("c")
+
 	def run_setup(self):
 		self.present_scn = self.convert_sct_to_array()
 		self.find_ref(ref_png_path, self.present_scn, search_resolution=2)
@@ -612,6 +612,8 @@ class TetrisGame:
 		# class object to handle simulated board states and produce the optimal move (he says)
 		self.move_simulator.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.minimised_shape_dict)
 		self.move_simulator.find_best_move()
+		self.hold_move_sim.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.hold_piece)
+		self.hold_move_sim.find_best_move()
 
 		best_move_obj = self.move_simulator.best_move
 		best_grid = best_move_obj.final_move_grid
@@ -663,6 +665,7 @@ class TetrisGame:
 		self.expected_n_sqs = 0
 		self.error_count = 0
 		self.clock.reset()
+		self.hold_piece = None
 
 
 ######################
@@ -675,7 +678,7 @@ ref_png_path = Path(__file__).with_name("Pause_button_ref.png")
 game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=12, action_timer_delay=0.02)
 game_bot.define_screen_region()
 game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
-game_bot.debug_mode = True
+game_bot.debug_mode = False
 if game_bot.debug_mode:
 	game_bot.set_game_log_path()
 
@@ -728,6 +731,12 @@ while True:
 						game_bot.write_to_gamelog(log_string)
 					continue
 
+				if game_bot.hold_piece is None:
+					# save the current data as piece data
+					game_bot.hold_piece = game_bot.minimised_shape_dict
+					game_bot.press_c()
+					game_bot.clock.reset()
+					continue
 
 				if game_bot.debug_mode:
 					board_array_as_string = np.array2string(game_bot.binary_board_state)
@@ -756,8 +765,6 @@ while True:
 						log_string = log_string +f"rows_cleared: {obj.rows_cleared}"
 						log_string = log_string +"\n"
 						log_string = log_string +f"simulated grid: {np.array2string(obj.final_move_grid)}"
-
-
 
 				# if n >= 3:
 				# previous = 0.2
@@ -791,12 +798,9 @@ while True:
 					log_string = log_string +"\n"
 					game_bot.write_to_gamelog(log_string)
 					n+=1
-
 				game_bot.clock.reset()
 				# print("o ran")
 			game_bot.clock.tick()
-
-
 
 	elif event.event_type == kb.KEY_DOWN and event.name == "q":
 		break
