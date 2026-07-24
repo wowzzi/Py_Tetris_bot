@@ -35,6 +35,8 @@ class TetrisGame:
 		self.expected_n_sqs = 0
 		self.total_lines_cleared = 0
 		self.hold_piece = None
+		self.best_move_obj = None
+		self.move_count = 0
 
 	def define_screen_region(self):
 			monitor = self.sct.monitors[self.mon_number]
@@ -496,6 +498,7 @@ class TetrisGame:
 
 	def translation_automate(self, current_x, target_x):
 		move_score = target_x - current_x
+		self.move_score = move_score
 		# print(f"required moves: {move_score}")
 
 		move_timer = Timer_class.timer(self.delay_time)
@@ -608,16 +611,32 @@ class TetrisGame:
 
 
 
-	def stage_three_simulate_and_automate_moves(self):
+	def stage_three_simulate_moves(self):
 		# class object to handle simulated board states and produce the optimal move (he says)
 		self.move_simulator.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.minimised_shape_dict)
 		self.move_simulator.find_best_move()
-		self.hold_move_sim.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.hold_piece)
-		self.hold_move_sim.find_best_move()
+		self.best_move_obj = self.move_simulator.best_move
+		if self.hold_piece is not None and self.move_count >1:
+			# hear me out, I need to give the simulator the actual active tetris objects not the holds, because we use it to clean the grid for simulations
+			self.hold_move_sim.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.hold_piece.get("shape_data"))
+			self.hold_move_sim.find_best_move()
 
-		best_move_obj = self.move_simulator.best_move
-		best_grid = best_move_obj.final_move_grid
-		self.expected_n_sqs = len(best_grid[best_grid == 1]) - (best_move_obj.rows_cleared * 10)
+			if self.move_simulator.best_move <= self.hold_move_sim.best_move:
+				pass
+			else:
+				# if the hold object has a better score (lower) then use that sim
+				# also dont forget to hit c
+				# also dont forget to save the current actual piece as hold after the swap
+				self.best_move_obj = self.hold_move_sim.best_move
+				self.switch_to_hold_routine()
+				self.press_c()
+				time.sleep(0.1)
+
+
+
+
+		best_grid = self.best_move_obj.final_move_grid
+		self.expected_n_sqs = len(best_grid[best_grid == 1]) - (self.best_move_obj.rows_cleared * 10)
 		# best_move_obj is a class called stored_move, (more of a struct tbh)
 		# with attributes:
 		# 				 	rotation_id: int,
@@ -628,19 +647,42 @@ class TetrisGame:
 		# 				 	rows_cleared: int
 		#					min_x: int
 
-
-		self.required_rotate = game_bot.calc_rotation_needed(self.rotation_id, best_move_obj.rotation_id)
+	def stage_four_automate_moves(self):
+		self.required_rotate = game_bot.calc_rotation_needed(self.rotation_id, self.best_move_obj.rotation_id)
 		self.rotation_automate(self.required_rotate)
 		self.calculate_x_translation_required(
 			self.required_rotate,
 			self.active_tetris_objects,
-			best_move_obj.min_x,
+			self.best_move_obj.min_x,
 			self.tet_shape_key
 		)
 
-	def stage_four_hit_space(self, delay_seconds=0.1):
+	def stage_five_hit_space(self, delay_seconds=0.1):
 		time.sleep(delay_seconds)
 		self.press_space()
+
+	def switch_to_hold_routine(self):
+		# temporarily extract the current shape data
+		current_shape_dict = self.minimised_shape_dict.copy()
+		current_active_objs = self.active_tetris_objects.copy()
+		current_rotation_id = self.rotation_id
+		current_shape_id = self.tet_shape_key
+
+		# set the new shape data
+		self.minimised_shape_dict = self.hold_piece.get("shape_data")
+		self.active_tetris_objects = self.hold_piece.get("obj_indexes")
+		self.rotation_id = self.hold_piece.get("rotation_id")
+		self.tet_shape_key = self.hold_piece.get("shape_key")
+
+		# overwrite the old hold obj with that temp data
+		# mutability shouldn't be an issue when re-assigning data in the dict, since im not updating the same memory address
+		self.hold_piece = {
+			'shape_data': current_shape_dict,
+			'obj_indexes': current_active_objs,
+			'rotation_id': current_rotation_id,
+			'shape_key': current_shape_id
+		}
+
 
 	def set_game_log_path(self):
 		game_log = Path(__file__).with_name("game_log.txt")
@@ -666,6 +708,7 @@ class TetrisGame:
 		self.error_count = 0
 		self.clock.reset()
 		self.hold_piece = None
+		self.move_count = 1
 
 
 ######################
@@ -694,7 +737,7 @@ while True:
 		game_bot.reset_game()
 		if game_bot.debug_mode:
 			log_string = "o pressed, automation starting!\n"
-			n = 1
+
 		while True:
 			if game_bot.clock:
 				if game_bot.debug_mode:
@@ -733,22 +776,27 @@ while True:
 
 				if game_bot.hold_piece is None:
 					# save the current data as piece data
-					game_bot.hold_piece = game_bot.minimised_shape_dict
+					game_bot.hold_piece = {
+						'shape_data': game_bot.minimised_shape_dict,
+						'obj_indexes': game_bot.active_tetris_objects,
+						'rotation_id': game_bot.rotation_id,
+						'shape_key': game_bot.tet_shape_key
+				   	}
 					game_bot.press_c()
 					game_bot.clock.reset()
 					continue
 
 				if game_bot.debug_mode:
 					board_array_as_string = np.array2string(game_bot.binary_board_state)
-					log_string = log_string + f"Run {n}: board state"
+					log_string = log_string + f"Run {game_bot.move_count}: board state"
 					log_string = log_string +"\n"
 					log_string = log_string + board_array_as_string
 					log_string = log_string +"\n"
 
 				# stage 3
-				game_bot.stage_three_simulate_and_automate_moves()
+				game_bot.stage_three_simulate_moves()
 				if game_bot.debug_mode:
-					for sim_no, obj in  enumerate(game_bot.move_simulator.simulated_move_objects, start =1):
+					for sim_no, obj in  enumerate(game_bot.hold_move_sim.simulated_move_objects, start =1):
 						log_string = log_string +"\n"
 						log_string = log_string +f"simulation {sim_no}"
 						log_string = log_string +"\n"
@@ -764,13 +812,12 @@ while True:
 						log_string = log_string +"\n"
 						log_string = log_string +f"rows_cleared: {obj.rows_cleared}"
 						log_string = log_string +"\n"
-						log_string = log_string +f"simulated grid: {np.array2string(obj.final_move_grid)}"
+						log_string = log_string +f"simulated grid: \n{np.array2string(obj.final_move_grid)}"
 
-				# if n >= 3:
-				# previous = 0.2
-				# if game_bot.total_lines_cleared < 110:
-				game_bot.stage_four_hit_space(delay_seconds=0.02)
-				game_bot.total_lines_cleared += game_bot.move_simulator.best_move.rows_cleared
+				game_bot.stage_four_automate_moves()
+
+				game_bot.stage_five_hit_space(delay_seconds=0.02)
+				# game_bot.total_lines_cleared += game_bot.move_simulator.best_move.rows_cleared
 				# n=0
 				# previous = 0.2
 				# time.sleep(0.01)
@@ -787,6 +834,8 @@ while True:
 					log_string = log_string + "\n"
 					log_string = log_string + f"BEST rows_cleared: {game_bot.move_simulator.best_move.rows_cleared}"
 					log_string = log_string + "\n"
+					log_string = log_string + f"required rotation presses: {game_bot.required_rotate}, required horizontal translation: {game_bot.move_score}"
+					log_string = log_string + "\n"
 					final_move_board = np.array2string(game_bot.move_simulator.best_move.final_move_grid)
 					log_string = log_string + "final simulated board layout"
 					log_string = log_string + "\n"
@@ -797,7 +846,8 @@ while True:
 					log_string = log_string +"#"*100
 					log_string = log_string +"\n"
 					game_bot.write_to_gamelog(log_string)
-					n+=1
+
+				game_bot.move_count +=1
 				game_bot.clock.reset()
 				# print("o ran")
 			game_bot.clock.tick()

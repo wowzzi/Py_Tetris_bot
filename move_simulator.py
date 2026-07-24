@@ -168,3 +168,19 @@ class stored_move:
 		self.height_score = height_score
 		self.blockage_score = blockage_score
 		self.rows_cleared = rows_cleared
+		self.overall_score = ((self.blockage_score + 1) * self.height_score)/ (self.rows_cleared + 1)
+
+	def __lt__(self, other):
+		return self.overall_score < other.overall_score
+
+	def __gt__(self, other):
+		return self.overall_score > other.overall_score
+
+	def __eq__(self, other):
+		return self.overall_score == other.overall_score
+
+	def __le__(self, other):
+		return self.overall_score <= other.overall_score
+
+	def __ge__(self, other):
+		return self.overall_score >= other.overall_score
