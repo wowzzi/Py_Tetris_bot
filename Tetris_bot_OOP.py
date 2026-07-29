@@ -37,6 +37,7 @@ class TetrisGame:
 		self.hold_piece = None
 		self.best_move_obj = None
 		self.move_count = 0
+		self.ref_png_path = None
 
 	def define_screen_region(self):
 			monitor = self.sct.monitors[self.mon_number]
@@ -184,7 +185,7 @@ class TetrisGame:
 	def check_ref_location(self, show:bool=False, save:bool=False, cycle:bool=False, adjustment:bool=False):
 		if cycle:
 			self.present_scn = self.convert_sct_to_array()
-			reference_game_screen = Image.open(ref_png_path)
+			reference_game_screen = Image.open(self.ref_png_path)
 			ref_data = np.asarray(reference_game_screen)
 			self.ref_region = tf.sub_fractionate_3d_array(self.present_scn, ref_data, start_row=self.closest_coords[0], start_col=self.closest_coords[1])
 
@@ -238,7 +239,7 @@ class TetrisGame:
 		x_y_mesh = np.stack(x_y_mesh, axis=-1)
 		inverted_xy_arr = np.flipud(x_y_mesh)
 		self.pixel_grid = np.fliplr(inverted_xy_arr)
-		self.next_pixel_coord = self.closest_coords + np.array([-375, -51])
+		# self.next_pixel_coord = self.closest_coords + np.array([-375, -51])
 
 
 
@@ -543,7 +544,7 @@ class TetrisGame:
 
 	def run_setup(self):
 		self.present_scn = self.convert_sct_to_array()
-		self.find_ref(ref_png_path, self.present_scn, search_resolution=2)
+		self.find_ref(self.ref_png_path, self.present_scn, search_resolution=2)
 		self.generate_px_grid()
 		self.generate_board_px_means()
 		self.determine_bg_col()
@@ -710,150 +711,160 @@ class TetrisGame:
 		self.hold_piece = None
 		self.move_count = 1
 
+	def set_ref_path(self, file_name: str | None = None):
+		if file_name is None:
+			file_name = "Pause_button_ref.png"
+		fp = Path(__file__).with_name("Pause_button_ref.png")
+		if fp.exists():
+			self.ref_png_path = fp
+		else:
+			raise Exception("no reference file found")
+
 
 ######################
 #### Script Start ####
 ######################
 
-mss_instance = mss.MSS()
-ref_png_path = Path(__file__).with_name("Pause_button_ref.png")
+if __name__ == "__main__":
+	mss_instance = mss.MSS()
 
-game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=12, action_timer_delay=0.02)
-game_bot.define_screen_region()
-game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
-game_bot.debug_mode = False
-if game_bot.debug_mode:
-	game_bot.set_game_log_path()
+	game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=12, action_timer_delay=0.02)
+	game_bot.set_ref_path()
+	game_bot.define_screen_region()
+	game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
+	game_bot.debug_mode = False
+	if game_bot.debug_mode:
+		game_bot.set_game_log_path()
 
 
-while True:
-	# wait for next event.
-	event = kb.read_event()
-	if event.event_type == kb.KEY_DOWN and event.name == "p":
-		game_bot.run_setup()
+	while True:
+		# wait for next event.
+		event = kb.read_event()
+		if event.event_type == kb.KEY_DOWN and event.name == "p":
+			game_bot.run_setup()
 
-	elif game_bot.setup_done and event.event_type == kb.KEY_DOWN and event.name == "o":
-		print("o pressed")
-		game_bot.reset_game()
-		if game_bot.debug_mode:
-			log_string = "o pressed, automation starting!\n"
+		elif game_bot.setup_done and event.event_type == kb.KEY_DOWN and event.name == "o":
+			print("o pressed")
+			game_bot.reset_game()
+			if game_bot.debug_mode:
+				log_string = "o pressed, automation starting!\n"
 
-		while True:
-			if game_bot.clock:
-				if game_bot.debug_mode:
-					log_string = ""
-				# stage 1
-				game_bot.stage_one_image_processing()
-
-				# handle error if we cant find the next tetromino
-				error_code = game_bot.handle_active_obj_error()
-				if error_code == 0:
-					game_bot.clock.quick_reset(speed_factor = 0.8)
+			while True:
+				if game_bot.clock:
 					if game_bot.debug_mode:
-						log_string = log_string + f"Couldn't find the active group"
-						log_string = log_string + "\n"
-						board_array_as_string = np.array2string(game_bot.binary_board_state)
-						log_string = log_string + board_array_as_string
-						log_string = log_string + "\n"
+						log_string = ""
+					# stage 1
+					game_bot.stage_one_image_processing()
 
-						game_bot.write_to_gamelog(log_string)
-					continue
-				elif error_code == 1:
-					print("Automated loop end")
-					break
+					# handle error if we cant find the next tetromino
+					error_code = game_bot.handle_active_obj_error()
+					if error_code == 0:
+						game_bot.clock.quick_reset(speed_factor = 0.8)
+						if game_bot.debug_mode:
+							log_string = log_string + f"Couldn't find the active group"
+							log_string = log_string + "\n"
+							board_array_as_string = np.array2string(game_bot.binary_board_state)
+							log_string = log_string + board_array_as_string
+							log_string = log_string + "\n"
 
-				# stage 2
-				if game_bot.stage_two_shape_characteristics():
-					game_bot.clock.quick_reset(speed_factor = 0.8)
+							game_bot.write_to_gamelog(log_string)
+						continue
+					elif error_code == 1:
+						print("Automated loop end")
+						break
+
+					# stage 2
+					if game_bot.stage_two_shape_characteristics():
+						game_bot.clock.quick_reset(speed_factor = 0.8)
+						if game_bot.debug_mode:
+							log_string = log_string + f"Board not fully reset - n squares was same as expected"
+							log_string = log_string + "\n"
+							board_array_as_string = np.array2string(game_bot.binary_board_state)
+							log_string = log_string + board_array_as_string
+							log_string = log_string + "\n"
+							game_bot.write_to_gamelog(log_string)
+						continue
+
+					if game_bot.hold_piece is None:
+						# save the current data as piece data
+						game_bot.hold_piece = {
+							'shape_data': game_bot.minimised_shape_dict,
+							'obj_indexes': game_bot.active_tetris_objects,
+							'rotation_id': game_bot.rotation_id,
+							'shape_key': game_bot.tet_shape_key
+						}
+						game_bot.press_c()
+						game_bot.clock.reset()
+						continue
+
 					if game_bot.debug_mode:
-						log_string = log_string + f"Board not fully reset - n squares was same as expected"
-						log_string = log_string + "\n"
 						board_array_as_string = np.array2string(game_bot.binary_board_state)
+						log_string = log_string + f"Run {game_bot.move_count}: board state"
+						log_string = log_string +"\n"
 						log_string = log_string + board_array_as_string
-						log_string = log_string + "\n"
-						game_bot.write_to_gamelog(log_string)
-					continue
+						log_string = log_string +"\n"
 
-				if game_bot.hold_piece is None:
-					# save the current data as piece data
-					game_bot.hold_piece = {
-						'shape_data': game_bot.minimised_shape_dict,
-						'obj_indexes': game_bot.active_tetris_objects,
-						'rotation_id': game_bot.rotation_id,
-						'shape_key': game_bot.tet_shape_key
-				   	}
-					game_bot.press_c()
+					# stage 3
+					game_bot.stage_three_simulate_moves()
+					if game_bot.debug_mode:
+						for sim_no, obj in  enumerate(game_bot.hold_move_sim.simulated_move_objects, start =1):
+							log_string = log_string +"\n"
+							log_string = log_string +f"simulation {sim_no}"
+							log_string = log_string +"\n"
+							log_string = log_string +f"rotation id: {obj.rotation_id}"
+							log_string = log_string +"\n"
+							log_string = log_string +f"indexes for each square in the sim: {obj.position_indexes}"
+							log_string = log_string +"\n"
+							log_string = log_string +f"column index: {obj.min_x}"
+							log_string = log_string +"\n"
+							log_string = log_string +f"height score: {obj.height_score}"
+							log_string = log_string +"\n"
+							log_string = log_string +f"blockage_score: {obj.blockage_score}"
+							log_string = log_string +"\n"
+							log_string = log_string +f"rows_cleared: {obj.rows_cleared}"
+							log_string = log_string +"\n"
+							log_string = log_string +f"simulated grid: \n{np.array2string(obj.final_move_grid)}"
+
+					game_bot.stage_four_automate_moves()
+
+					game_bot.stage_five_hit_space(delay_seconds=0.02)
+					# game_bot.total_lines_cleared += game_bot.move_simulator.best_move.rows_cleared
+					# n=0
+					# previous = 0.2
+					# time.sleep(0.01)
+
+					if game_bot.debug_mode:
+						log_string = log_string + "\n"
+						log_string = log_string + f"BEST rotation ID: {game_bot.move_simulator.best_move.rotation_id}"
+						log_string = log_string + "\n"
+						log_string = log_string + f"BEST column: {game_bot.move_simulator.best_move.min_x}"
+						log_string = log_string + "\n"
+						log_string = log_string + f"BEST height score: {game_bot.move_simulator.best_move.height_score}"
+						log_string = log_string + "\n"
+						log_string = log_string + f"BEST blockage_score: {game_bot.move_simulator.best_move.blockage_score}"
+						log_string = log_string + "\n"
+						log_string = log_string + f"BEST rows_cleared: {game_bot.move_simulator.best_move.rows_cleared}"
+						log_string = log_string + "\n"
+						log_string = log_string + f"required rotation presses: {game_bot.required_rotate}, required horizontal translation: {game_bot.move_score}"
+						log_string = log_string + "\n"
+						final_move_board = np.array2string(game_bot.move_simulator.best_move.final_move_grid)
+						log_string = log_string + "final simulated board layout"
+						log_string = log_string + "\n"
+						log_string = log_string + final_move_board
+						log_string = log_string + "\n"
+						log_string = log_string +"#"*100
+						log_string = log_string +"\n"
+						log_string = log_string +"#"*100
+						log_string = log_string +"\n"
+						game_bot.write_to_gamelog(log_string)
+
+					game_bot.move_count +=1
 					game_bot.clock.reset()
-					continue
+					# print("o ran")
+				game_bot.clock.tick()
 
-				if game_bot.debug_mode:
-					board_array_as_string = np.array2string(game_bot.binary_board_state)
-					log_string = log_string + f"Run {game_bot.move_count}: board state"
-					log_string = log_string +"\n"
-					log_string = log_string + board_array_as_string
-					log_string = log_string +"\n"
+		elif event.event_type == kb.KEY_DOWN and event.name == "q":
+			break
 
-				# stage 3
-				game_bot.stage_three_simulate_moves()
-				if game_bot.debug_mode:
-					for sim_no, obj in  enumerate(game_bot.hold_move_sim.simulated_move_objects, start =1):
-						log_string = log_string +"\n"
-						log_string = log_string +f"simulation {sim_no}"
-						log_string = log_string +"\n"
-						log_string = log_string +f"rotation id: {obj.rotation_id}"
-						log_string = log_string +"\n"
-						log_string = log_string +f"indexes for each square in the sim: {obj.position_indexes}"
-						log_string = log_string +"\n"
-						log_string = log_string +f"column index: {obj.min_x}"
-						log_string = log_string +"\n"
-						log_string = log_string +f"height score: {obj.height_score}"
-						log_string = log_string +"\n"
-						log_string = log_string +f"blockage_score: {obj.blockage_score}"
-						log_string = log_string +"\n"
-						log_string = log_string +f"rows_cleared: {obj.rows_cleared}"
-						log_string = log_string +"\n"
-						log_string = log_string +f"simulated grid: \n{np.array2string(obj.final_move_grid)}"
-
-				game_bot.stage_four_automate_moves()
-
-				game_bot.stage_five_hit_space(delay_seconds=0.02)
-				# game_bot.total_lines_cleared += game_bot.move_simulator.best_move.rows_cleared
-				# n=0
-				# previous = 0.2
-				# time.sleep(0.01)
-
-				if game_bot.debug_mode:
-					log_string = log_string + "\n"
-					log_string = log_string + f"BEST rotation ID: {game_bot.move_simulator.best_move.rotation_id}"
-					log_string = log_string + "\n"
-					log_string = log_string + f"BEST column: {game_bot.move_simulator.best_move.min_x}"
-					log_string = log_string + "\n"
-					log_string = log_string + f"BEST height score: {game_bot.move_simulator.best_move.height_score}"
-					log_string = log_string + "\n"
-					log_string = log_string + f"BEST blockage_score: {game_bot.move_simulator.best_move.blockage_score}"
-					log_string = log_string + "\n"
-					log_string = log_string + f"BEST rows_cleared: {game_bot.move_simulator.best_move.rows_cleared}"
-					log_string = log_string + "\n"
-					log_string = log_string + f"required rotation presses: {game_bot.required_rotate}, required horizontal translation: {game_bot.move_score}"
-					log_string = log_string + "\n"
-					final_move_board = np.array2string(game_bot.move_simulator.best_move.final_move_grid)
-					log_string = log_string + "final simulated board layout"
-					log_string = log_string + "\n"
-					log_string = log_string + final_move_board
-					log_string = log_string + "\n"
-					log_string = log_string +"#"*100
-					log_string = log_string +"\n"
-					log_string = log_string +"#"*100
-					log_string = log_string +"\n"
-					game_bot.write_to_gamelog(log_string)
-
-				game_bot.move_count +=1
-				game_bot.clock.reset()
-				# print("o ran")
-			game_bot.clock.tick()
-
-	elif event.event_type == kb.KEY_DOWN and event.name == "q":
-		break
-
-	elif event.event_type == kb.KEY_DOWN and event.name == "u":
-		game_bot.run_reference_check(save=True, show=True, cycle=True, adjustment=True)
+		elif event.event_type == kb.KEY_DOWN and event.name == "u":
+			game_bot.run_reference_check(save=True, show=True, cycle=True, adjustment=True)
