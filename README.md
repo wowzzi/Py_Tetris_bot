@@ -7,9 +7,7 @@ This project was created primarily as a way to develop my Python skills through 
 Current highscore: 210,050
 
 ## Example game automation
-https://github.com/user-attachments/assets/70919944-d6f2-43e4-bf89-52c4b0f88d99
-
-
+<img width="365" height="296" alt="Tetris_gif_segments-ezgif com-resize" src="https://github.com/user-attachments/assets/3d473c66-0caf-4d47-a79a-ef539d5733ee" />
 
 ---
 
