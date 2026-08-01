@@ -4,12 +4,16 @@ class timer:
 	def __init__(self, finish_time):
 		self.finish_time = finish_time
 		self.delta_time = 0
+		self.total_time = 0
 		self.previous_time = time.perf_counter()
 
 	def tick(self):
 		new_time = time.perf_counter()
-		self.delta_time += new_time - self.previous_time
+		frame_delta = new_time - self.previous_time
+		self.delta_time += frame_delta
+		self.total_time += frame_delta
 		self.previous_time = new_time
+
 
 	def __bool__(self):
 		return self.delta_time > self.finish_time
@@ -35,11 +39,13 @@ class timer:
 
 
 if __name__ == '__main__':
-	test_timer = timer(1)
+	test_timer = timer(0.2)
 	n=0
 	while True:
 		test_timer.tick()
 		if test_timer:
 			n+=1
 			print(f"seconds: {n}")
+			print(f"{test_timer.total_time}")
+			print(f"{test_timer}\n")
 			test_timer.reset()

@@ -58,11 +58,29 @@ class TetrisGame:
 
 
 	def convert_sct_to_array(self):
-			screen_grab = self.sct.grab(self.screen_region)
-			scn_grab_as_img = Image.new('RGB', screen_grab.size)
-			RGB_pixel_tuple = zip(screen_grab.raw[2::4], screen_grab.raw[1::4], screen_grab.raw[::4])
-			scn_grab_as_img.putdata(list(RGB_pixel_tuple))
-			return np.array(scn_grab_as_img)
+		# return np.array((self.sct.grab(self.screen_region)).pixels)
+		time_one = time.perf_counter()
+		screen_grab = self.sct.grab(self.screen_region)
+		print(f"grab time: {time.perf_counter() - time_one}")
+		#pp.pp(np.array(screen_grab.pixels))
+		time_one = time.perf_counter()
+		screen_array = np.asarray(screen_grab)
+		print(screen_array)
+		print(f"np.asarray time: {time.perf_counter() - time_one}")
+
+		time_one = time.perf_counter()
+		scn_grab_as_img = Image.new('RGB', screen_grab.size)
+		print(f"Image.new time: {time.perf_counter() - time_one}")
+		time_one = time.perf_counter()
+		RGB_pixel_tuple = zip(screen_grab.raw[2::4], screen_grab.raw[1::4], screen_grab.raw[::4])
+		print(f"zip time: {time.perf_counter() - time_one}")
+		time_one = time.perf_counter()
+		scn_grab_as_img.putdata(list(RGB_pixel_tuple))
+		print(f"putdata time: {time.perf_counter() - time_one}")
+		return np.array(scn_grab_as_img)
+
+	def optimised_scn_grab(self):
+		return np.asarray(self.sct.grab(self.screen_region))
 
 
 	def find_ref(self, ref_png_path, scrn_shot_array, search_resolution: int = 1) -> tuple:
@@ -247,7 +265,7 @@ class TetrisGame:
 		if not hasattr(self, "pixel_grid"):
 			self.generate_px_grid()
 		self.board_pixels = self.present_scn[self.pixel_grid[:,:,1], self.pixel_grid[:,:,0]]
-		self.mean_rgb_vals = np.mean(self.board_pixels, axis=-1, keepdims=True, dtype=np.int16)
+		self.mean_rgb_vals = np.mean(self.board_pixels[:,:,0:3], axis=-1, keepdims=True, dtype=np.int16)
 
 	def determine_bg_col(self):
 		if not hasattr(self, "pixel_grid"):
@@ -565,7 +583,10 @@ class TetrisGame:
 		if 2 groups have len 4, then we sort that by checking if any of the groups contain bottom border squares, because they cant be the active group
 		"""
 		# gets the screenshot, makes it an numpy array
-		self.present_scn = self.convert_sct_to_array()
+		time_one = time.perf_counter()
+		# self.present_scn = self.convert_sct_to_array()
+		self.present_scn = self.optimised_scn_grab()
+
 		self.generate_board_px_means()
 		self.determine_board_state() # makes a 2-d list filled with tetris objects from Tetris_square_obj rather than just mean rgb
 
@@ -727,8 +748,8 @@ class TetrisGame:
 
 if __name__ == "__main__":
 	mss_instance = mss.MSS()
-
-	game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=12, action_timer_delay=0.02)
+	# 31jul26 fps was at 12
+	game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=20, action_timer_delay=0.02)
 	game_bot.set_ref_path()
 	game_bot.define_screen_region()
 	game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
@@ -754,7 +775,10 @@ if __name__ == "__main__":
 					if game_bot.debug_mode:
 						log_string = ""
 					# stage 1
+					prev_time = time.perf_counter()
 					game_bot.stage_one_image_processing()
+					print("stage 1 complete time")
+					print(time.perf_counter() - prev_time)
 
 					# handle error if we cant find the next tetromino
 					error_code = game_bot.handle_active_obj_error()
@@ -774,6 +798,7 @@ if __name__ == "__main__":
 						break
 
 					# stage 2
+					prev_time = time.perf_counter()
 					if game_bot.stage_two_shape_characteristics():
 						game_bot.clock.quick_reset(speed_factor = 0.8)
 						if game_bot.debug_mode:
@@ -803,8 +828,11 @@ if __name__ == "__main__":
 						log_string = log_string +"\n"
 						log_string = log_string + board_array_as_string
 						log_string = log_string +"\n"
+					print("stage 2 +errors complete time")
+					print(time.perf_counter() - prev_time)
 
 					# stage 3
+					prev_time = time.perf_counter()
 					game_bot.stage_three_simulate_moves()
 					if game_bot.debug_mode:
 						for sim_no, obj in  enumerate(game_bot.hold_move_sim.simulated_move_objects, start =1):
@@ -825,8 +853,13 @@ if __name__ == "__main__":
 							log_string = log_string +"\n"
 							log_string = log_string +f"simulated grid: \n{np.array2string(obj.final_move_grid)}"
 
+					print("stage 3 simulations complete time")
+					print(time.perf_counter() - prev_time)
+					prev_time = time.perf_counter()
 					game_bot.stage_four_automate_moves()
 
+					print("stage 4 automate moves time")
+					print(time.perf_counter() - prev_time)
 					game_bot.stage_five_hit_space(delay_seconds=0.02)
 					# game_bot.total_lines_cleared += game_bot.move_simulator.best_move.rows_cleared
 					# n=0

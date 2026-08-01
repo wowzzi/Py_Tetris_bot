@@ -22,6 +22,20 @@ class frame_master:
 		self.key_frame = None
 		self.prev_key_frame = None
 
+	def new_frame(self, frame):
+		self.prev_frame = self.frame
+		self.frame = frame
+
+	def new_significant_frame(self, frame):
+		self.prev_sig_frame = self.significant_frame
+		self.significant_frame = frame
+
+	def new_key_frame(self, frame):
+		self.prev_key_frame = self.key_frame
+		self.key_frame = frame
+
+
+
 
 class tetris_thread_bot(tb.TetrisGame):
 	def __init__(self,  monitor: int =0, scn_width: int=300, scn_height: int=300, mss_instance=None, fps: int = 8, action_timer_delay: float = 0.04):
@@ -33,22 +47,39 @@ class tetris_thread_bot(tb.TetrisGame):
 		self.generate_board_px_means()
 		bg_mean_rgbs = np.full_like(self.mean_rgb_vals, self.bg_val)
 		difference = np.abs(self.mean_rgb_vals - bg_mean_rgbs)
-		self.binary_board_state = ((difference > 2).astype(np.uint8)).reshape((20,10))
+		self.fm.new_frame(((difference > 2).astype(np.uint8)).reshape((20,10)))
 
 	def log_screen_shots(self):
 		timer = Timer_class.timer(self.time_per_frame)
 		timer.reset()
+		report_str = ""
 		n = 0
+		self.update_screen_shot()
 		while True:
 			if timer:
 				n+=1
-				self.update_screen_shot()
-				self.write_to_gamelog(f"board state: {n}, {timer} seconds\n")
-				self.write_to_gamelog(np.array2string(self.binary_board_state))
-				self.write_to_gamelog(f"\n\n")
+				# self.update_screen_shot()
+				report_str = report_str +f"frame id: {n}, {timer.total_time} seconds\n"
+				report_str = report_str +f"previous  frame:\n"
+				if self.fm.prev_frame is not None:
+					report_str = report_str +np.array2string(self.fm.prev_frame)
+				else:
+					report_str = report_str +"None"
+				report_str = report_str +f"\ncurrent frame:\n"
+				if self.fm.frame is not None:
+					report_str = report_str +np.array2string(self.fm.frame)
+				else:
+					report_str = report_str +"None"
+				report_str = report_str +f"\n\n"
 				print("tick")
+				timer.reset()
 			timer.tick()
 			if not self.running:
+				self.write_to_gamelog(report_str)
+				break
+			if timer.total_time > 10:
+				self.write_to_gamelog(report_str)
+				print("10 done")
 				break
 
 	def check_quit(self):
@@ -73,7 +104,7 @@ class tetris_thread_bot(tb.TetrisGame):
 		pass
 
 
-game_bot = tetris_thread_bot(monitor=2, scn_width=820, scn_height=1000, fps=12, action_timer_delay=0.02)
+game_bot = tetris_thread_bot(monitor=2, scn_width=820, scn_height=1000, fps=10, action_timer_delay=0.02)
 game_bot.set_ref_path()
 game_bot.define_screen_region()
 game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
@@ -86,6 +117,7 @@ while True:
 	event = kb.read_event()
 	if event.event_type == kb.KEY_DOWN and event.name == "p":
 		game_bot.present_scn = game_bot.convert_sct_to_array()
+		print(game_bot.present_scn)
 		game_bot.find_ref(game_bot.ref_png_path, game_bot.present_scn, search_resolution=2)
 		game_bot.generate_px_grid()
 		game_bot.generate_board_px_means()
@@ -95,11 +127,11 @@ while True:
 		print("o pressed")
 		game_bot.running = True
 		game_bot.screenshot_thread = threading.Thread(target=game_bot.log_screen_shots)
-		quit_thread = threading.Thread(target=game_bot.check_quit)
-		quit_thread.start()
+		# quit_thread = threading.Thread(target=game_bot.check_quit)
+		# quit_thread.start()
 		game_bot.screenshot_thread.start()
 
-		quit_thread.join()
+		# quit_thread.join()
 		game_bot.screenshot_thread.join()
 
 	if event.event_type == kb.KEY_DOWN and event.name == "q":
