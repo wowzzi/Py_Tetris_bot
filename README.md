@@ -6,6 +6,11 @@ This project was created primarily as a way to develop my Python skills through 
 
 Current highscore: 210,050
 
+## Example game automation
+https://github.com/user-attachments/assets/70919944-d6f2-43e4-bf89-52c4b0f88d99
+
+
+
 ---
 
 ## Features
