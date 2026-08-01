@@ -4,7 +4,7 @@ A Python-based automation project that analyses a live game of Tetris from https
 
 This project was created primarily as a way to develop my Python skills through a challenging, performance-critical problem involving image processing, algorithm design, optimisation, and automation and also to beat my friends' high score.. still in progress 😂
 
-Current highscore: 197,122
+Current highscore: 210,050
 
 ---
 
