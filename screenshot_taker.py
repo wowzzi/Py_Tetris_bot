@@ -59,11 +59,12 @@ class tetris_thread_bot(tb.TetrisGame):
 		# self.update_screen_shot()
 		while True:
 			if timer:
+				timer.reset()
 				n+=1
-				print("timer true")
-				scn_shot_thread = threading.Thread(target=self.update_screen_shot())
-				scn_shot_thread.start()
-				scn_shot_thread.join()
+				self.update_screen_shot()
+				# scn_shot_thread = threading.Thread(target=self.update_screen_shot())
+				# scn_shot_thread.start()
+
 				report_str = report_str +f"frame id: {n}, {timer.total_time} seconds\n"
 				report_str = report_str +f"previous  frame:\n"
 				if self.fm.prev_frame is not None:
@@ -77,8 +78,9 @@ class tetris_thread_bot(tb.TetrisGame):
 					report_str = report_str +"None"
 				report_str = report_str +f"\n\n"
 				print("tick")
-				timer.reset()
-				print("timer reset")
+				# scn_shot_thread.join()
+
+
 			timer.tick()
 			if not self.running:
 				self.write_to_gamelog(report_str)
@@ -110,7 +112,7 @@ class tetris_thread_bot(tb.TetrisGame):
 		pass
 
 
-game_bot = tetris_thread_bot(monitor=2, scn_width=820, scn_height=1000, fps=1, action_timer_delay=0.02)
+game_bot = tetris_thread_bot(monitor=2, scn_width=820, scn_height=1000, fps=60, action_timer_delay=0.02)
 game_bot.set_ref_path()
 game_bot.define_screen_region()
 game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
@@ -132,17 +134,17 @@ while True:
 	if event.event_type == kb.KEY_DOWN and event.name == "o":
 		print("o pressed")
 		game_bot.running = True
-		# game_bot.screenshot_thread = threading.Thread(target=game_bot.log_screen_shots)
+
+		game_bot.screenshot_thread = threading.Thread(target=game_bot.log_screen_shots)
 		quit_thread = threading.Thread(target=game_bot.check_quit)
 		quit_thread.start()
-		# game_bot.screenshot_thread.start()
-
 		first_time = time.perf_counter()
-		game_bot.log_screen_shots()
+		game_bot.screenshot_thread.start()
+
+		game_bot.screenshot_thread.join()
 		end_time = time.perf_counter() - first_time
 		print(f"actual overall time: {end_time}")
 		quit_thread.join()
-		# game_bot.screenshot_thread.join()
 
 	if event.event_type == kb.KEY_DOWN and event.name == "q":
 		if hasattr(game_bot, "running"):

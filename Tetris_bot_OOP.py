@@ -43,7 +43,8 @@ class TetrisGame:
 			monitor = self.sct.monitors[self.mon_number]
 			mon_center_x = monitor['left'] + monitor['width'] // 2
 			mon_center_y = monitor['top'] + monitor['height'] // 2
-
+			self.screen_origin = (monitor['left'], monitor['top'])
+			print(f"monitor origin: ({monitor['left']}, {monitor['top']})")
 			top = mon_center_y - self.height // 2
 			left = mon_center_x - self.width // 2
 			# region defining portion of the screen to take screenshot of
@@ -80,7 +81,7 @@ class TetrisGame:
 		return np.array(scn_grab_as_img)
 
 	def optimised_scn_grab(self):
-		return np.asarray(self.sct.grab(self.screen_region))
+		return np.asarray(self.sct.grab(self.smallest_scn))
 
 
 	def find_ref(self, ref_png_path, scrn_shot_array, search_resolution: int = 1) -> tuple:
@@ -257,9 +258,39 @@ class TetrisGame:
 		x_y_mesh = np.stack(x_y_mesh, axis=-1)
 		inverted_xy_arr = np.flipud(x_y_mesh)
 		self.pixel_grid = np.fliplr(inverted_xy_arr)
+		top_px = self.pixel_grid[0,0]
+		region_top = self.screen_region.get('top')
+		region_left = self.screen_region.get('left')
+		overall_x = top_px[0] + region_left
+		overall_y = top_px[1] + region_top
+		self.smallest_scn = {
+			'top': overall_y,
+			'left': overall_x,
+			'width': self.grid_width+1,
+			'height': self.grid_height+1,
+			'mon': self.mon_number
+		}
+
+		self.normalised_px_grid = self.pixel_grid - top_px
+
+		# self.show_min_scn_shot()
 		# self.next_pixel_coord = self.closest_coords + np.array([-375, -51])
 
+	def show_min_scn_shot(self):
+		min_shot = self.sct.grab(self.smallest_scn)
+		screen_array = np.asarray(min_shot)
+		scn_grab_as_img = Image.new('RGB', min_shot.size)
+		RGB_pixel_tuple = zip(min_shot.raw[2::4], min_shot.raw[1::4], min_shot.raw[::4])
+		scn_grab_as_img.putdata(list(RGB_pixel_tuple))
+		self.new_min_px_grid = np.array(scn_grab_as_img)
+		self.new_min_px_grid[self.normalised_px_grid[:,:,1], self.normalised_px_grid[:,:,0]] = [255, 0,0]
+		self.new_min_grid_preview = Image.fromarray(self.new_min_px_grid)
 
+	def generate_minimised_px_means(self):
+		if not hasattr(self, "pixel_grid"):
+			self.generate_px_grid()
+		self.board_pixels = self.present_scn[self.normalised_px_grid[:, :, 1], self.normalised_px_grid[:, :, 0]]
+		self.mean_rgb_vals = np.mean(self.board_pixels[:, :, 0:3], axis=-1, keepdims=True, dtype=np.int16)
 
 	def generate_board_px_means(self):
 		if not hasattr(self, "pixel_grid"):
@@ -587,7 +618,8 @@ class TetrisGame:
 		# self.present_scn = self.convert_sct_to_array()
 		self.present_scn = self.optimised_scn_grab()
 
-		self.generate_board_px_means()
+		self.generate_minimised_px_means()
+		# self.generate_board_px_means()
 		self.determine_board_state() # makes a 2-d list filled with tetris objects from Tetris_square_obj rather than just mean rgb
 
 		# groups objects into a dict and sorts them based on proximity

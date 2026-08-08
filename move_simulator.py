@@ -139,8 +139,14 @@ class move_simulator:
 		short_list = [obj for obj in short_list if obj.min_x == min_x_coord]
 		return short_list[0]
 
+	def evaluate_moves_by_score(self):
+		return min(self.simulated_move_objects)
+
 	def find_best_move(self):
 		self.best_move = self.evaluate_all_moves()
+
+	def find_best_score(self):
+		self.best_move = self.evaluate_moves_by_score()
 
 	def generate_clean_binary_board(self, board_state_array: np.ndarray, active_tetris_objects: list) -> np.ndarray:
 		if board_state_array is None or active_tetris_objects is None:
