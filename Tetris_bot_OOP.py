@@ -633,7 +633,7 @@ class TetrisGame:
 		if not self.active_tetris_group_key:
 			# print("couldn't find the active group")
 			self.add_error()
-			if self.error_count > 20:
+			if self.error_count > 40:
 				return 1
 			else:
 				return 0
@@ -667,24 +667,33 @@ class TetrisGame:
 
 	def stage_three_simulate_moves(self):
 		# class object to handle simulated board states and produce the optimal move (he says)
+		current_time = time.perf_counter()
 		self.move_simulator.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.minimised_shape_dict)
-		self.move_simulator.find_best_move()
+		print(f"simulate moves: {time.perf_counter() - current_time} seconds")
+		current_time = time.perf_counter()
+		self.move_simulator.find_best_move() #- original code
+		# self.move_simulator.find_best_score()
+		print(f"find_best_move: {time.perf_counter() - current_time} seconds")
 		self.best_move_obj = self.move_simulator.best_move
 		if self.hold_piece is not None and self.move_count >1:
+			current_time = time.perf_counter()
 			# hear me out, I need to give the simulator the actual active tetris objects not the holds, because we use it to clean the grid for simulations
 			self.hold_move_sim.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.hold_piece.get("shape_data"))
-			self.hold_move_sim.find_best_move()
-
+			self.hold_move_sim.find_best_move() #- original code
+			# self.hold_move_sim.find_best_score()
+			print(f"hold piece simulation: {time.perf_counter() - current_time} seconds")
 			if self.move_simulator.best_move <= self.hold_move_sim.best_move:
 				pass
 			else:
+				current_time = time.perf_counter()
 				# if the hold object has a better score (lower) then use that sim
 				# also dont forget to hit c
 				# also dont forget to save the current actual piece as hold after the swap
 				self.best_move_obj = self.hold_move_sim.best_move
 				self.switch_to_hold_routine()
 				self.press_c()
-				time.sleep(0.1)
+				time.sleep(0.08)
+				print(f"switch to hold and sleep: {time.perf_counter() - current_time} seconds")
 
 
 
