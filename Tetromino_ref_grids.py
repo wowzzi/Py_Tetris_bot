@@ -100,6 +100,9 @@ class ref_grid_handler:
 		else:
 			return True
 
+	def get_minimised_array(self, shape_key) -> np.ndarray:
+		return self.minimised_data.get(shape_key)
+
 if __name__ == "__main__":
 	for key, array in ref_grids.items():
 		print(f"current key: {key}")

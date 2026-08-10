@@ -16,16 +16,31 @@ import time
 
 class frame_master:
 	def __init__(self):
-		self.frame = None
-		self.prev_frame = None
-		self.significant_frame = None
-		self.prev_sig_frame = None
-		self.key_frame = None
-		self.prev_key_frame = None
+		empty_arr = np.zeros((20,10), dtype=np.uint8)
+		self.n_ones = 0
+		self.prev_n_ones = 0
+		self.frame = empty_arr
+		self.prev_frame = empty_arr
+		self.minor_frame = empty_arr
+		self.prev_minor_frame = empty_arr
+		self.significant_frame = empty_arr
+		self.prev_sig_frame = empty_arr
+		self.key_frame = empty_arr
+		self.prev_key_frame = empty_arr
+		self.frame_num = 0
 
 	def new_frame(self, frame):
 		self.prev_frame = self.frame
 		self.frame = frame
+
+		self.prev_n_ones = self.n_ones
+		self.n_ones = len(self.frame[self.frame == 1])
+
+		self.frame_num +=1
+
+	def new_minor_frame(self, frame):
+		self.prev_minor_frame = self.minor_frame
+		self.minor_frame = frame
 
 	def new_significant_frame(self, frame):
 		self.prev_sig_frame = self.significant_frame
@@ -34,6 +49,67 @@ class frame_master:
 	def new_key_frame(self, frame):
 		self.prev_key_frame = self.key_frame
 		self.key_frame = frame
+
+	def calc_frame_delta(self):
+		delta_frame = np.abs(self.frame + self.prev_frame)
+		number_of_ones = len(delta_frame[delta_frame == 1])
+
+		if number_of_ones > 0:
+			self.new_minor_frame(self.frame)
+			return True
+		return False
+
+	def get_argones(self, input_binary: np.ndarray) -> np.ndarray:
+		return np.stack((np.where(input_binary !=1, 0, 1)).nonzero(), axis=-1)
+
+	def find_shape_indexes(self, frame_one: np.ndarray, reference_frame:np.ndarray) -> np.ndarray:
+		summed_arr = np.add(frame_one, reference_frame, dtype=np.uint8)
+		return self.get_argones(summed_arr)
+
+	def process_frame_significance(self):
+		delta_n = self.n_ones - self.prev_n_ones
+		# key frame logic
+		if delta_n > 0:
+			# log the key frame
+			self.new_key_frame(self.frame)
+			# calculate the difference to the previous frame and find the different indexes
+			new_piece_indexes = self.find_shape_indexes(self.key_frame, self.prev_frame)
+			# if it finds 4, then its legit
+			shape_array = None
+			if len(new_piece_indexes) == 4:
+				normalised_new_piece_coords = self.normalise_array_coords(new_piece_indexes)
+				shape_array = self.slice_in_shape_grid(normalised_new_piece_coords)
+			# significant frame is the frame directly previous to the key frame, it acts as a good frame of reference.
+			self.new_significant_frame(self.prev_frame)
+
+			return {
+				'significant': True,
+				'new_indexes': new_piece_indexes,
+				'shape array': shape_array
+			}
+
+		elif self.calc_frame_delta():
+			return {
+				'significant': False
+			}
+		return None
+
+	def normalise_array_coords(self, input_array_of_coords: np.ndarray) -> np.ndarray:
+		"""
+		parameter: input_array_of_coords
+		intended to be an np.ndarray of shape (x, 2) where x is typically 4.
+		"""
+		row_min_coord = (input_array_of_coords[:,0]).min()
+		col_min_coord = (input_array_of_coords[:,1]).min()
+
+		return input_array_of_coords - np.array([row_min_coord, col_min_coord])
+
+	def slice_in_shape_grid(self, input_coord_array: np.ndarray) -> np.ndarray:
+		blank_array = np.zeros((4,4), dtype=np.uint8)
+		blank_array[input_coord_array[:,0], input_coord_array[:,1]] = 1
+		return blank_array
+
+
 
 
 
@@ -45,10 +121,10 @@ class tetris_thread_bot(tb.TetrisGame):
 
 	def update_screen_shot(self):
 		self.present_scn = self.optimised_scn_grab()
-		self.generate_board_px_means()
-		bg_mean_rgbs = np.full_like(self.mean_rgb_vals, self.bg_val)
-		difference = np.abs(self.mean_rgb_vals - bg_mean_rgbs)
+		self.generate_minimised_px_means()
+		difference = np.abs(self.mean_rgb_vals - self.bg_val)
 		self.fm.new_frame(((difference > 2).astype(np.uint8)).reshape((20,10)))
+
 
 	def log_screen_shots(self):
 		print("logging screen shots")
@@ -56,30 +132,30 @@ class tetris_thread_bot(tb.TetrisGame):
 		timer.reset()
 		report_str = ""
 		n = 0
-		# self.update_screen_shot()
+
 		while True:
 			if timer:
 				timer.reset()
 				n+=1
 				self.update_screen_shot()
-				# scn_shot_thread = threading.Thread(target=self.update_screen_shot())
-				# scn_shot_thread.start()
+				response = self.fm.process_frame_significance()
+				if response is not None:
+					current_frame = self.fm.frame
+					if len(response) > 1:
+						# significant
+						shape_coords = response.get("new_indexes")
+						new_shape = response.get("shape array")
+						self.get_tetromino(new_shape)
+						report_str = report_str + f"\ncurrent tetro:\n{self.minimised_shape_dict.get(self.rotation_id)}"
 
-				report_str = report_str +f"frame id: {n}, {timer.total_time} seconds\n"
-				report_str = report_str +f"previous  frame:\n"
-				if self.fm.prev_frame is not None:
-					report_str = report_str +np.array2string(self.fm.prev_frame)
-				else:
-					report_str = report_str +"None"
-				report_str = report_str +f"\ncurrent frame:\n"
-				if self.fm.frame is not None:
-					report_str = report_str +np.array2string(self.fm.frame)
-				else:
-					report_str = report_str +"None"
-				report_str = report_str +f"\n\n"
+					else:
+						# just check pos
+						reference_frame = self.fm.significant_frame
+						current_indexes = self.fm.find_shape_indexes(current_frame, reference_frame)
+						report_str = report_str + f"\ncurrent_pos: \n{current_indexes}"
+					report_str = report_str + f"\n current board state:\n{current_frame}"
+
 				print("tick")
-				# scn_shot_thread.join()
-
 
 			timer.tick()
 			if not self.running:
@@ -110,6 +186,10 @@ class tetris_thread_bot(tb.TetrisGame):
 
 	def scn_shot_analysis_thread(self):
 		pass
+
+	def get_tetromino(self, input_shape:np.ndarray):
+		self.tet_shape_key, self.rotation_id = self.trg_handler.determine_tetromino(input_shape)
+		self.minimised_shape_dict = self.trg_handler.get_minimised_array(self.tet_shape_key)
 
 
 game_bot = tetris_thread_bot(monitor=2, scn_width=820, scn_height=1000, fps=60, action_timer_delay=0.02)
