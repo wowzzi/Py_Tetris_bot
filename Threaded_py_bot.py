@@ -5,6 +5,7 @@ import numpy as np
 import Timer_class
 import threading
 import time
+import Thread_bot_move_sim as MS
 
 # self.present_scn = self.convert_sct_to_array()
 # self.find_ref(ref_png_path, self.present_scn, search_resolution=2)
@@ -118,13 +119,14 @@ class tetris_thread_bot(tb.TetrisGame):
 	def __init__(self,  monitor: int =0, scn_width: int=300, scn_height: int=300, mss_instance=None, fps: int = 8, action_timer_delay: float = 0.04):
 		super().__init__(monitor, scn_width, scn_height, mss_instance, fps, action_timer_delay)
 		self.fm = frame_master()
+		self.move_simulator = MS.tb_move_sim()
+		self.hold_move_sim = MS.tb_move_sim()
 
 	def update_screen_shot(self):
 		self.present_scn = self.optimised_scn_grab()
 		self.generate_minimised_px_means()
 		difference = np.abs(self.mean_rgb_vals - self.bg_val)
 		self.fm.new_frame(((difference > 2).astype(np.uint8)).reshape((20,10)))
-
 
 	def log_screen_shots(self):
 		print("logging screen shots")
@@ -143,28 +145,46 @@ class tetris_thread_bot(tb.TetrisGame):
 					current_frame = self.fm.frame
 					if len(response) > 1:
 						# significant
-						shape_coords = response.get("new_indexes")
+						self.shape_coords = response.get("new_indexes")
 						new_shape = response.get("shape array")
 						self.get_tetromino(new_shape)
-						report_str = report_str + f"\ncurrent tetro:\n{self.minimised_shape_dict.get(self.rotation_id)}"
+						if self.tet_shape_key is None:
+							error_code = self.handle_no_shape_error()
+							if error_code == 1:
+								print("break loop")
+								break
+							elif error_code == 0:
+								continue
+						if self.debug_mode:
+							report_str = report_str + f"\ncurrent tetro:\n{self.minimised_shape_dict.get(self.rotation_id)}"
+
+						self.move_simulator.new_sim_moves(self.fm.significant_frame, self.minimised_shape_dict)
+						self.move_simulator.find_best_move()
+						self.best_move_obj = self.move_simulator.best_move
+						self.automate_moves_thread()
+						self.stage_five_hit_space(delay_seconds=0.02)
 
 					else:
 						# just check pos
 						reference_frame = self.fm.significant_frame
 						current_indexes = self.fm.find_shape_indexes(current_frame, reference_frame)
-						report_str = report_str + f"\ncurrent_pos: \n{current_indexes}"
-					report_str = report_str + f"\n current board state:\n{current_frame}"
+						if self.debug_mode:
+							report_str = report_str + f"\ncurrent_pos: \n{current_indexes}"
 
-				print("tick")
+					if self.debug_mode:
+						report_str = report_str + f"\n current board state:\n{current_frame}"
+
+				# print("tick")
 
 			timer.tick()
 			if not self.running:
-				self.write_to_gamelog(report_str)
+				if self.debug_mode:
+					self.write_to_gamelog(report_str)
 				break
-			if timer.total_time > 10:
-				self.write_to_gamelog(report_str)
-				print("10 done")
-				break
+			# if timer.total_time > 10:
+			# 	self.write_to_gamelog(report_str)
+			# 	print("10 done")
+			# 	break
 
 	def check_quit(self):
 		while True:
@@ -189,14 +209,55 @@ class tetris_thread_bot(tb.TetrisGame):
 
 	def get_tetromino(self, input_shape:np.ndarray):
 		self.tet_shape_key, self.rotation_id = self.trg_handler.determine_tetromino(input_shape)
-		self.minimised_shape_dict = self.trg_handler.get_minimised_array(self.tet_shape_key)
+		if self.tet_shape_key is not None:
+			self.minimised_shape_dict = self.trg_handler.get_minimised_array(self.tet_shape_key)
+
+	def automate_moves_thread(self):
+		self.required_rotate = game_bot.calc_rotation_needed(self.rotation_id, self.best_move_obj.rotation_id)
+		self.rotation_automate(self.required_rotate)
+		self.new_calc_x_translation(
+			self.required_rotate,
+			self.shape_coords,
+			self.best_move_obj.min_x,
+			self.tet_shape_key
+		)
+
+	def new_calc_x_translation(self, rotation_score, current_shape_coords, target_column, piece_id):
+		current_min_x = min([coord[1] for coord in current_shape_coords])
+		x_offset = 0
+		if rotation_score == 0:
+			pass
+		else:
+			if piece_id == "long":
+				if rotation_score > 0:
+					x_offset = 2
+				else:
+					x_offset = 1
+			else:
+				if rotation_score == 1 or rotation_score == -3:
+					x_offset = 1
+		self.translation_automate(current_min_x + x_offset, target_column)
+
+	def handle_no_shape_error(self):
+		if self.tet_shape_key is None:
+			print("no tet shape key")
+			self.add_error()
+			if self.error_count > 40:
+				return 1
+			else:
+				return 0
+		else:
+			self.reset_error_count()
+		return None
+
+
 
 
 game_bot = tetris_thread_bot(monitor=2, scn_width=820, scn_height=1000, fps=60, action_timer_delay=0.02)
 game_bot.set_ref_path()
 game_bot.define_screen_region()
 game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
-game_bot.debug_mode = True
+game_bot.debug_mode = False
 if game_bot.debug_mode:
 	game_bot.set_game_log_path()
 

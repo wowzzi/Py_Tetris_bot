@@ -93,6 +93,8 @@ class ref_grid_handler:
 		input and reference array must be the same size.
 		designed for shape 4x4 but only requires shape to be equal
 		"""
+		if input_array is None or reference_array is None:
+			return False
 		difference = input_array - reference_array
 		difference = difference[difference!=0]
 		if len(difference) > 0:
