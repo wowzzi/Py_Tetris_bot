@@ -772,6 +772,7 @@ class TetrisGame:
 		self.clock.reset()
 		self.hold_piece = None
 		self.move_count = 1
+		self.hold_used = False
 
 	def set_ref_path(self, file_name: str | None = None):
 		if file_name is None:
