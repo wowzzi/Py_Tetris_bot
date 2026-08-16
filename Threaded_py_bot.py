@@ -124,18 +124,21 @@ class tetris_thread_bot(tb.TetrisGame):
 		self.hold_used = False
 		self.move_count =0
 
+
 	def update_screen_shot(self):
 		self.present_scn = self.optimised_scn_grab()
 		self.generate_minimised_px_means()
 		difference = np.abs(self.mean_rgb_vals - self.bg_val)
 		self.fm.new_frame(((difference > 2).astype(np.uint8)).reshape((20,10)))
 
+
 	def log_screen_shots(self):
 		print("logging screen shots")
+		bot_start_time = time.perf_counter()
 		timer = Timer_class.timer(self.time_per_frame)
 		timer.reset()
 		self.move_count = 0
-		report_str = ""
+		self.report_str = ""
 		while True:
 			if timer:
 				timer.reset()
@@ -143,21 +146,30 @@ class tetris_thread_bot(tb.TetrisGame):
 				response = self.fm.process_frame_significance()
 				if response is not None:
 					current_frame = self.fm.frame
-					if len(response) > 1:
-						# significant
+
+					if len(response) > 1: # means the delta n was > 0
+						# key / significant are updated
+						self.update_report_str(f"{time.perf_counter() - bot_start_time}s, Significant frame:\n{np.array2string(self.fm.significant_frame)}")
+						self.update_report_str(f"{time.perf_counter() - bot_start_time}s, key/current frame:\n{np.array2string(current_frame)}")
 						self.move_count += 1
 						self.shape_coords = response.get("new_indexes")
 						new_shape = response.get("shape array")
-						self.get_tetromino(new_shape)
+						self.get_tetromino(new_shape) # assigns self.tet_shape_key, self.rotation_id and self.minimised_shape_dict if self.tet_shape_key is not None
+						self.update_report_str(f"{time.perf_counter() - bot_start_time}s\n" 
+											   f"shape coords:\n{self.shape_coords},\n"
+											   f"tet_shape_key: {self.tet_shape_key}, "
+											   f"rotation ID: {self.rotation_id},\n"
+											   f"mini shape dict:\n{self.minimised_shape_dict}")
+						if self.hold_piece is not None:
+							self.update_report_str(f"hold piece info:\n{self.hold_piece}")
 						if self.tet_shape_key is None:
 							error_code = self.handle_no_shape_error()
 							if error_code == 1:
 								print("break loop")
 								break
 							elif error_code == 0:
+								self.update_report_str("error code 0 skip processing - no simulations done")
 								continue
-						if self.debug_mode:
-							report_str = report_str + f"\ncurrent tetro:\n{self.minimised_shape_dict.get(self.rotation_id)}"
 
 						if self.hold_piece is None:
 							# save the current data as piece data
@@ -170,47 +182,67 @@ class tetris_thread_bot(tb.TetrisGame):
 							self.press_c()
 							self.clock.reset()
 							self.hold_used = True
+							self.update_report_str("hold_piece none, so we pressed c reset clock and skipped further processing")
 							continue
 
 						self.move_simulator.new_sim_moves(self.fm.significant_frame, self.minimised_shape_dict)
 						self.move_simulator.find_best_move()
 						self.best_move_obj = self.move_simulator.best_move
+						self.update_report_str(f"{time.perf_counter() - bot_start_time}s, main piece move simulation best sim:\n"
+											   f"{np.array2string(self.best_move_obj.final_move_grid)}" )
 
-						if self.hold_piece is not None and self.move_count > 1 and not self.hold_used:
+						if self.move_count > 1 and not self.hold_used:
 							self.hold_move_sim.new_sim_moves(self.fm.significant_frame, self.hold_piece.get("shape_data"))
 							self.hold_move_sim.find_best_move()
+							self.update_report_str(
+								f"{time.perf_counter() - bot_start_time}s, hold piece move simulation best sim:\n"
+								f"{np.array2string(self.hold_move_sim.best_move.final_move_grid)}")
 
 							if self.move_simulator.best_move <= self.hold_move_sim.best_move:
-								pass
+								self.update_report_str(f"main move sim had a lower score: {self.move_simulator.best_move} < {self.hold_move_sim.best_move}")
 							else:
+								self.update_report_str(f"hold move sim had a lower score: {self.move_simulator.best_move} > {self.hold_move_sim.best_move}")
 								self.best_move_obj = self.hold_move_sim.best_move
 								self.new_hold_routine()
 								self.press_c()
 								self.hold_used = True
+								self.update_report_str(f"hold pressed, checking the data:\n"
+													   f"shape dict: {self.minimised_shape_dict}\n"
+													   f"object_indexes: {self.shape_coords}\n")
+								# self.minimised_shape_dict = self.hold_piece.get("shape_data")
+								# self.active_tetris_objects = self.hold_piece.get("obj_indexes")
+								# self.rotation_id = self.hold_piece.get("rotation_id")
+								# self.tet_shape_key = self.hold_piece.get("shape_key")
+
 								continue
-
-
+						self.update_report_str(f"{time.perf_counter() - bot_start_time}s\n"
+											   f"" )
 						self.automate_moves_thread()
 						self.stage_five_hit_space(delay_seconds=0.02)
+						self.update_report_str(f"pressed space to drop piece")
 						self.hold_used = False
-
 					else:
 						# just check pos
 						reference_frame = self.fm.significant_frame
 						current_indexes = self.fm.find_shape_indexes(current_frame, reference_frame)
-						if self.debug_mode:
-							report_str = report_str + f"\ncurrent_pos: \n{current_indexes}"
-
-					if self.debug_mode:
-						report_str = report_str + f"\n current board state:\n{current_frame}"
-
-				# print("tick")
-
+						if not len(current_indexes) == 4:
+							continue
+						self.update_report_str(f"{time.perf_counter() - bot_start_time}s, delta n was equal to previous\n" 
+											   f"current indexes:\n{current_indexes}\n"
+											   f"current frame:\n{np.array2string(current_frame)}")
+						if self.hold_used and self.move_count > 1:
+							self.automate_moves_thread()
+							self.stage_five_hit_space(delay_seconds=0.02)
+							self.update_report_str(f"pressed space to drop piece")
+							self.hold_used = False
 			timer.tick()
 			if not self.running:
 				if self.debug_mode:
-					self.write_to_gamelog(report_str)
+					self.write_to_gamelog(self.report_str)
 				break
+			elif self.move_count % 10 == 0 and self.report_str != "" and self.debug_mode:
+				self.write_to_gamelog(self.report_str)
+				self.reset_report_str()
 			# if timer.total_time > 10:
 			# 	self.write_to_gamelog(report_str)
 			# 	print("10 done")
@@ -241,6 +273,7 @@ class tetris_thread_bot(tb.TetrisGame):
 
 	def automate_moves_thread(self):
 		self.required_rotate = game_bot.calc_rotation_needed(self.rotation_id, self.best_move_obj.rotation_id)
+		self.update_report_str(f"required rotation: {self.required_rotate}")
 		self.rotation_automate(self.required_rotate)
 		self.new_calc_x_translation(
 			self.required_rotate,
@@ -280,13 +313,13 @@ class tetris_thread_bot(tb.TetrisGame):
 	def new_hold_routine(self):
 		# temporarily extract the current shape data
 		current_shape_dict = self.minimised_shape_dict.copy()
-		current_active_objs = self.shape_coords
+		current_shape_coords = self.shape_coords.copy()
 		current_rotation_id = self.rotation_id
 		current_shape_id = self.tet_shape_key
 
 		# set the new shape data
 		self.minimised_shape_dict = self.hold_piece.get("shape_data")
-		self.active_tetris_objects = self.hold_piece.get("obj_indexes")
+		self.shape_coords = self.hold_piece.get("obj_indexes")
 		self.rotation_id = self.hold_piece.get("rotation_id")
 		self.tet_shape_key = self.hold_piece.get("shape_key")
 
@@ -294,10 +327,11 @@ class tetris_thread_bot(tb.TetrisGame):
 		# mutability shouldn't be an issue when re-assigning data in the dict, since im not updating the same memory address
 		self.hold_piece = {
 			'shape_data': current_shape_dict,
-			'obj_indexes': current_active_objs,
+			'obj_indexes': current_shape_coords,
 			'rotation_id': current_rotation_id,
 			'shape_key': current_shape_id
 		}
+
 
 
 ####################
@@ -308,7 +342,7 @@ game_bot = tetris_thread_bot(monitor=2, scn_width=820, scn_height=1000, fps=60, 
 game_bot.set_ref_path()
 game_bot.define_screen_region()
 game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
-game_bot.debug_mode = False
+game_bot.debug_mode = True
 if game_bot.debug_mode:
 	game_bot.set_game_log_path()
 

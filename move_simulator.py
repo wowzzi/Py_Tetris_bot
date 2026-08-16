@@ -190,3 +190,6 @@ class stored_move:
 
 	def __ge__(self, other):
 		return self.overall_score >= other.overall_score
+
+	def __str__(self):
+		return str(self.overall_score)

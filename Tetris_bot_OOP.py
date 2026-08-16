@@ -38,6 +38,7 @@ class TetrisGame:
 		self.best_move_obj = None
 		self.move_count = 0
 		self.ref_png_path = None
+		self.report_str = ""
 
 	def define_screen_region(self):
 			monitor = self.sct.monitors[self.mon_number]
@@ -509,26 +510,23 @@ class TetrisGame:
 		rotation_timer = Timer_class.timer(self.delay_time)
 		while rotation_score < 0:
 		# rotate left
-		# 	print("pressing z")
-			kb.send('z')
-			rotation_score += 1
-			while True:
-				rotation_timer.tick()
-				if rotation_timer:
-					rotation_timer.reset()
-					break
+		# print("pressing z")
+			rotation_timer.tick()
+			if rotation_timer:
+				self.press_z()
+				self.update_report_str("pressed z to rotate left")
+				rotation_score += 1
+				rotation_timer.reset()
 
 		while rotation_score > 0:
 		#rotate right
-			# 72 is the scan code for up arrow key
 			# print("pressing up")
-			kb.send(72)
-			rotation_score -= 1
-			while True:
-				rotation_timer.tick()
-				if rotation_timer:
-					rotation_timer.reset()
-					break
+			rotation_timer.tick()
+			if rotation_timer:
+				self.press_up()
+				self.update_report_str("pressed up arrow to rotate right")
+				rotation_score -= 1
+				rotation_timer.reset()
 
 	def calculate_x_translation_required(self, rotation_score, current_active_objs, target_column, piece_id):
 		current_min_x = min([obj.index[1] for obj in current_active_objs])
@@ -549,29 +547,28 @@ class TetrisGame:
 	def translation_automate(self, current_x, target_x):
 		move_score = target_x - current_x
 		self.move_score = move_score
+		self.update_report_str(f"required translation: {self.move_score}")
 		# print(f"required moves: {move_score}")
 
 		move_timer = Timer_class.timer(self.delay_time)
 
 		while move_score > 0:
 			# print("pressing right")
-			kb.send(77)
-			move_score -= 1
-			while True:
-				move_timer.tick()
-				if move_timer:
-					move_timer.reset()
-					break
+			move_timer.tick()
+			if move_timer:
+				self.press_right()
+				self.update_report_str("pressed right")
+				move_score -= 1
+				move_timer.reset()
 
 		while move_score < 0:
 			# print("pressing left")
-			kb.send(75)
-			move_score += 1
-			while True:
-				move_timer.tick()
-				if move_timer:
-					move_timer.reset()
-					break
+			move_timer.tick()
+			if move_timer:
+				self.press_left()
+				self.update_report_str("pressed left")
+				move_score += 1
+				move_timer.reset()
 
 	def press_space(self):
 		kb.send(57)
@@ -608,7 +605,7 @@ class TetrisGame:
 		"""
 		main screenshot processing
 
-		this stage gets a new image and converts from screenshot -> numpy array (RGBs) -> numpy array (mean RGBs) -> 2d list containing Tetris_square_objs.
+		this stage gets a new image and converts from screenshot -> numpy array (RGBs) -> numpy array (mean of RGBs) -> 2d list containing Tetris_square_objs.
 		it then sorts those objects that contains non-bg pixel means into groups of neighbours
 		it then consults those groups, and figures out which one is active based on the group length
 		if 2 groups have len 4, then we sort that by checking if any of the groups contain bottom border squares, because they cant be the active group
@@ -661,9 +658,6 @@ class TetrisGame:
 		self.minimised_shape_dict = self.trg_handler.minimised_data.get(self.tet_shape_key)
 
 		return False
-
-
-
 
 	def stage_three_simulate_moves(self):
 		# class object to handle simulated board states and produce the optimal move (he says)
@@ -764,6 +758,14 @@ class TetrisGame:
 
 		with open(self.game_log_fp, "a") as f:
 			f.write(data)
+
+	def update_report_str(self, text_update):
+		if not self.debug_mode:
+			return
+		self.report_str = self.report_str + f"{text_update}\n"
+
+	def reset_report_str(self):
+		self.report_str = ""
 
 	def reset_game(self):
 		self.total_lines_cleared = 0
