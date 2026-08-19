@@ -108,17 +108,24 @@ class move_simulator:
 
 	def evaluate_all_moves(self):
 		current_move_objects = self.simulated_move_objects
-
+		min_overall_height = min(obj.height_score for obj in current_move_objects)
+		max_overall_height = max(obj.height_score for obj in current_move_objects)
+		for object in current_move_objects:
+			setattr(object, "normalised_height", (object.height_score - min_overall_height) / max_overall_height)
 		# get any objects in the list which have a rows cleared >2
 		short_list = [obj for obj in current_move_objects if obj.rows_cleared > 2]
 		if len(short_list) > 0:
 			return short_list[0]
 
 		# short list the ones with the lowest blockage score
-		min_blockage_score = min([obj.blockage_score for obj in current_move_objects])
+		min_blockage_score = min(obj.blockage_score for obj in current_move_objects)
 		short_list = [obj for obj in current_move_objects if obj.blockage_score == min_blockage_score]
 		if len(short_list) == 1:
-			return short_list[0]
+			if short_list[0].normalised_height < 0.1:
+				return short_list[0]
+			else:
+				print("evaluate by score")
+				return self.evaluate_moves_by_score()
 
 		# check if those remaining clear 2 lines
 		cleared_two_shortlist = [obj for obj in short_list if obj.rows_cleared == 2]
@@ -174,7 +181,7 @@ class stored_move:
 		self.height_score = height_score
 		self.blockage_score = blockage_score
 		self.rows_cleared = rows_cleared
-		self.overall_score = ((self.blockage_score + 1) * self.height_score)/ (self.rows_cleared + 1)
+		self.overall_score = (((self.blockage_score * 0.5) + 1) * self.height_score)/ (self.rows_cleared + 1)
 
 	def __lt__(self, other):
 		return self.overall_score < other.overall_score

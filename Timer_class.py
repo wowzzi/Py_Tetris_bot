@@ -14,7 +14,6 @@ class timer:
 		self.total_time += frame_delta
 		self.previous_time = new_time
 
-
 	def __bool__(self):
 		return self.delta_time > self.finish_time
 
@@ -36,7 +35,6 @@ class timer:
 			speed_factor = 0.0
 		self.previous_time = time.perf_counter()
 		self.delta_time = self.finish_time * speed_factor
-
 
 if __name__ == '__main__':
 	test_timer = timer(0.2)

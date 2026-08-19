@@ -508,6 +508,7 @@ class TetrisGame:
 
 	def rotation_automate(self, rotation_score):
 		rotation_timer = Timer_class.timer(self.delay_time)
+		rotation_timer.quick_reset(1.0)
 		while rotation_score < 0:
 		# rotate left
 		# print("pressing z")
@@ -518,6 +519,7 @@ class TetrisGame:
 				rotation_score += 1
 				rotation_timer.reset()
 
+		rotation_timer.quick_reset(1.0)
 		while rotation_score > 0:
 		#rotate right
 			# print("pressing up")
@@ -552,6 +554,7 @@ class TetrisGame:
 
 		move_timer = Timer_class.timer(self.delay_time)
 
+		move_timer.quick_reset(1.0)
 		while move_score > 0:
 			# print("pressing right")
 			move_timer.tick()
@@ -561,6 +564,7 @@ class TetrisGame:
 				move_score -= 1
 				move_timer.reset()
 
+		move_timer.quick_reset(1.0)
 		while move_score < 0:
 			# print("pressing left")
 			move_timer.tick()
@@ -661,25 +665,24 @@ class TetrisGame:
 
 	def stage_three_simulate_moves(self):
 		# class object to handle simulated board states and produce the optimal move (he says)
-		current_time = time.perf_counter()
+
 		self.move_simulator.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.minimised_shape_dict)
-		print(f"simulate moves: {time.perf_counter() - current_time} seconds")
-		current_time = time.perf_counter()
+
+
 		self.move_simulator.find_best_move() #- original code
 		# self.move_simulator.find_best_score()
-		print(f"find_best_move: {time.perf_counter() - current_time} seconds")
+
 		self.best_move_obj = self.move_simulator.best_move
 		if self.hold_piece is not None and self.move_count >1:
-			current_time = time.perf_counter()
+
 			# hear me out, I need to give the simulator the actual active tetris objects not the holds, because we use it to clean the grid for simulations
 			self.hold_move_sim.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.hold_piece.get("shape_data"))
 			self.hold_move_sim.find_best_move() #- original code
 			# self.hold_move_sim.find_best_score()
-			print(f"hold piece simulation: {time.perf_counter() - current_time} seconds")
+
 			if self.move_simulator.best_move <= self.hold_move_sim.best_move:
 				pass
 			else:
-				current_time = time.perf_counter()
 				# if the hold object has a better score (lower) then use that sim
 				# also dont forget to hit c
 				# also dont forget to save the current actual piece as hold after the swap
@@ -687,7 +690,7 @@ class TetrisGame:
 				self.switch_to_hold_routine()
 				self.press_c()
 				time.sleep(0.08)
-				print(f"switch to hold and sleep: {time.perf_counter() - current_time} seconds")
+
 
 
 
@@ -819,10 +822,7 @@ if __name__ == "__main__":
 					if game_bot.debug_mode:
 						log_string = ""
 					# stage 1
-					prev_time = time.perf_counter()
 					game_bot.stage_one_image_processing()
-					print("stage 1 complete time")
-					print(time.perf_counter() - prev_time)
 
 					# handle error if we cant find the next tetromino
 					error_code = game_bot.handle_active_obj_error()
@@ -872,8 +872,7 @@ if __name__ == "__main__":
 						log_string = log_string +"\n"
 						log_string = log_string + board_array_as_string
 						log_string = log_string +"\n"
-					print("stage 2 +errors complete time")
-					print(time.perf_counter() - prev_time)
+
 
 					# stage 3
 					prev_time = time.perf_counter()
@@ -897,13 +896,10 @@ if __name__ == "__main__":
 							log_string = log_string +"\n"
 							log_string = log_string +f"simulated grid: \n{np.array2string(obj.final_move_grid)}"
 
-					print("stage 3 simulations complete time")
-					print(time.perf_counter() - prev_time)
+
 					prev_time = time.perf_counter()
 					game_bot.stage_four_automate_moves()
 
-					print("stage 4 automate moves time")
-					print(time.perf_counter() - prev_time)
 					game_bot.stage_five_hit_space(delay_seconds=0.02)
 					# game_bot.total_lines_cleared += game_bot.move_simulator.best_move.rows_cleared
 					# n=0
