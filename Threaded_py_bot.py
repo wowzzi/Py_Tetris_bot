@@ -7,14 +7,6 @@ import threading
 import time
 import Thread_bot_move_sim as MS
 
-# self.present_scn = self.convert_sct_to_array()
-# self.find_ref(ref_png_path, self.present_scn, search_resolution=2)
-# self.generate_px_grid()
-# self.generate_board_px_means()
-# self.determine_bg_col()
-# self.determine_board_state()
-# self.setup_done = True
-
 class frame_master:
 	def __init__(self):
 		empty_arr = np.zeros((20,10), dtype=np.uint8)
@@ -63,11 +55,11 @@ class frame_master:
 
 	def normalise_array_coords(self, input_coords: np.ndarray) -> np.ndarray:
 		"""
-		parameter: input_array_of_coords
+		parameter: input_coords
 		intended to be an np.ndarray of shape (x, 2) where x is typically 4.
 		"""
-		row_min_coord = (input_array_of_coords[:,0]).min()
-		col_min_coord = (input_array_of_coords[:,1]).min()
+		row_min_coord = (input_coords[:,0]).min()
+		col_min_coord = (input_coords[:,1]).min()
 
 		return input_coords - np.array([row_min_coord, col_min_coord])
 
@@ -106,7 +98,10 @@ class tetris_thread_bot(tb.TetrisGame):
 				self.step_one()
 
 			self.periodic_logging()
-
+			if self.error_count > 40:
+				print("self.error_count > 40")
+				self.running = False
+		print("stopped running")
 		if self.debug_mode:
 			self.write_to_gamelog(self.report_str)
 
@@ -116,14 +111,45 @@ class tetris_thread_bot(tb.TetrisGame):
 		delta_squares = self.fm.delta_n_ones
 		if delta_squares > 0:
 			self.move_count += 1
-			self.fm.significant_frame(self.fm.prev_frame)
-			self.fm.key_frame(self.fm.frame)
-			self.update_shape_info(self.fm.key_frame, self.fm.significant_frame)
+			self.fm.new_significant_frame(self.fm.prev_frame)
+			self.fm.new_key_frame(self.fm.frame)
+			if not self.update_shape_info(self.fm.key_frame, self.fm.significant_frame):
+				self.error_count += 1
+				print("error from the delta n >0 bit")
+				print(f"error count: {self.error_count}")
+				return
+			self.reset_error_count()
+			# acess variables: self.shape_coords: np.ndarray (e.g. array([[0, 0], [0, 1], [1, 0], [1, 1]])
+			# self.tet_shape_key: str (e.g. bw l, t, etc)
+			# self.rotation_id: int (e.g. 1,2,3,4)
+			# self.minimised_shape_dict: dict (e.g. 'sq': {1: np.array([[1,1],[1,1]])} we get the value from sq)
+			self.update_report_str("#"*20)
+			self.update_report_str(f"key frame detected on move count {self.move_count}:")
+			self.update_report_str(f"{np.array2string(self.fm.key_frame)}")
+			self.update_report_str(f"significant frame detected:")
+			self.update_report_str(f"{np.array2string(self.fm.significant_frame)}")
+			self.update_report_str(f"delta n = {delta_squares}\nnew positions detected, self.shape_coords:\n{np.array2string(self.shape_coords)}")
+			self.update_report_str(f"current shape: {self.tet_shape_key}")
+			self.update_report_str(f"current rotation id: {self.rotation_id}")
+			self.update_report_str(f"current shape data:\n{self.minimised_shape_dict}\n")
+			self.sim_signal = True
 		elif delta_squares < 0:
-			pass
+			self.update_report_str(f"delta n = {delta_squares} which is < 0, still on move count: {self.move_count}")
 		else:
 			if self.fm.do_frames_differ():
-				self.get_shape_info(self.fm.frame, self.fm.significant_frame)
+				if not self.update_shape_info(self.fm.frame, self.fm.significant_frame):
+					self.error_count += 1
+					print("errored from the delta n is equal bit")
+					print(f"error count: {self.error_count}")
+					return
+				self.reset_error_count()
+				self.update_report_str(f"delta n = {delta_squares}, still on move count: {self.move_count}\nnew positions detected, self.shape_coords:\n{np.array2string(self.shape_coords)}")
+				self.update_report_str(f"current shape: {self.tet_shape_key}")
+				self.update_report_str(f"current rotation id: {self.rotation_id}")
+				self.update_report_str(f"current shape data:\n{self.minimised_shape_dict}\n")
+				# acess variables: self.tet_shape_key: str (e.g. bw l, t, etc)
+				# self.rotation_id: int (e.g. 1,2,3,4)
+				# self.minimised_shape_dict: dict (e.g. 'sq': {1: np.array([[1,1],[1,1]])} we get the value from sq)
 
 	def update_screen_shot(self):
 		self.present_scn = self.optimised_scn_grab()
@@ -133,61 +159,35 @@ class tetris_thread_bot(tb.TetrisGame):
 
 	def update_shape_info(self, frame_one, frame_two):
 		self.shape_coords = self.fm.find_shape_indexes(frame_one, frame_two)
+		print(self.shape_coords)
+		print(self.shape_coords.size)
+		if len(self.shape_coords) != 4:
+			return False
 		_4x4_shape = self.fm.slice_in_shape_grid(self.fm.normalise_array_coords(self.shape_coords))
 		self.get_tetromino(_4x4_shape)
-
-
-	def check_quit(self):
-		while True:
-			event = kb.read_event()
-			if event.event_type == kb.KEY_DOWN and event.name == "q":
-				self.running = False
-				print("loop end")
-				break
+		return True
 
 	def get_tetromino(self, input_shape:np.ndarray):
 		self.tet_shape_key, self.rotation_id = self.trg_handler.determine_tetromino(input_shape)
 		if self.tet_shape_key is not None:
 			self.minimised_shape_dict = self.trg_handler.get_minimised_array(self.tet_shape_key)
 
-	def automate_moves_thread(self):
-		self.required_rotate = game_bot.calc_rotation_needed(self.rotation_id, self.best_move_obj.rotation_id)
-		self.update_report_str(f"required rotation: {self.required_rotate}")
-		self.rotation_automate(self.required_rotate)
-		self.new_calc_x_translation(
-			self.required_rotate,
-			self.shape_coords,
-			self.best_move_obj.min_x,
-			self.tet_shape_key
-		)
-
-	def new_calc_x_translation(self, rotation_score, current_shape_coords, target_column, piece_id):
-		current_min_x = min([coord[1] for coord in current_shape_coords])
-		x_offset = 0
-		if rotation_score == 0:
-			pass
-		else:
-			if piece_id == "long":
-				if rotation_score > 0:
-					x_offset = 2
-				else:
-					x_offset = 1
-			else:
-				if rotation_score == 1 or rotation_score == -3:
-					x_offset = 1
-		self.translation_automate(current_min_x + x_offset, target_column)
-
-	def handle_no_shape_error(self):
-		if self.tet_shape_key is None:
-			print("no tet shape key")
-			self.add_error()
-			if self.error_count > 40:
-				return 1
-			else:
-				return 0
-		else:
-			self.reset_error_count()
-		return None
+	def simulation_thread(self):
+		while self.running:
+			if self.sim_signal:
+				self.sim_signal = False
+				# do simulations now
+				if self.minimised_shape_dict is None:
+					return
+				self.move_simulator.new_sim_moves(self.fm.significant_frame, self.minimised_shape_dict)
+				self.move_simulator.find_best_move()
+				self.best_move_obj = self.move_simulator.best_move
+				self.update_report_str("Simulated: best move board")
+				best_board = self.best_move_obj.final_move_grid.copy()
+				print(self.best_move_obj.position_indexes)
+				print(best_board.shape)
+				best_board[self.best_move_obj.position_indexes[:,0], self.best_move_obj.position_indexes[:,1]] = 2
+				self.update_report_str(np.array2string(best_board))
 
 	def new_hold_routine(self):
 		# temporarily extract the current shape data
@@ -216,20 +216,16 @@ class tetris_thread_bot(tb.TetrisGame):
 			self.write_to_gamelog(self.report_str)
 			self.reset_report_str()
 
-	def simulation_thread(self):
-		while self.running:
-			if self.sim_signal:
-				self.sim_signal = False
-				# do simulations now
-				if self.minimised_shape_dict is None:
-					return
-				self.move_simulator.new_sim_moves(self.fm.significant_frame, self.minimised_shape_dict)
-				self.move_simulator.find_best_move()
-				self.best_move_obj = self.move_simulator.best_move
-
-
-
-
+	def check_quit(self):
+		while True:
+			event = kb.read_event()
+			if event.event_type == kb.KEY_DOWN and event.name == "q" or not self.running:
+				self.running = False
+				if self.debug_mode and self.report_str != "":
+					self.write_to_gamelog(self.report_str)
+					self.reset_report_str()
+				print("loop end")
+				break
 
 ####################
 ### Script start ###
@@ -260,14 +256,17 @@ while True:
 		game_bot.running = True
 
 		game_bot.screenshot_thread = threading.Thread(target=game_bot.run_bot)
+		game_bot.sim_thread = threading.Thread(target=game_bot.simulation_thread)
 		quit_thread = threading.Thread(target=game_bot.check_quit)
 		quit_thread.start()
-		first_time = time.perf_counter()
 		game_bot.screenshot_thread.start()
+		game_bot.sim_thread.start()
+		first_time = time.perf_counter()
 
 		game_bot.screenshot_thread.join()
 		end_time = time.perf_counter() - first_time
 		print(f"actual overall time: {end_time}")
+		game_bot.sim_thread.join()
 		quit_thread.join()
 
 	if event.event_type == kb.KEY_DOWN and event.name == "q":

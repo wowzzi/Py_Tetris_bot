@@ -691,10 +691,6 @@ class TetrisGame:
 				self.press_c()
 				time.sleep(0.08)
 
-
-
-
-
 		best_grid = self.best_move_obj.final_move_grid
 		self.expected_n_sqs = len(best_grid[best_grid == 1]) - (self.best_move_obj.rows_cleared * 10)
 		# best_move_obj is a class called stored_move, (more of a struct tbh)

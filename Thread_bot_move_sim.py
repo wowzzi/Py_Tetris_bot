@@ -21,7 +21,7 @@ class tb_move_sim(MS.move_simulator):
 			for col in range(board_width - (shape_width - 1)):
 				found_move_for_this_col = False
 				for row in list(range(board_height))[:board_height - (shape_height - 1)]:
-					simulation_grid, sim_pos_indexes = self.construct_a_move((col, row), board_state_array, shape_array)
+					simulation_grid, sim_pos_indexes = self.construct_a_move((row, col), board_state_array, shape_array)
 					if self.check_for_hit(simulation_grid):
 						# print("found hit")
 						found_move_for_this_col = True

@@ -27,7 +27,7 @@ class move_simulator:
 			for col in range(board_width-(shape_width-1)):
 				found_move_for_this_col = False
 				for row in list(range(board_height))[:board_height-(shape_height-1)]:
-					simulation_grid, sim_pos_indexes = self.construct_a_move((col, row), cleaned_board, shape_array)
+					simulation_grid, sim_pos_indexes = self.construct_a_move((row, col), cleaned_board, shape_array)
 					if self.check_for_hit(simulation_grid):
 						# print("found hit")
 						found_move_for_this_col = True
@@ -43,28 +43,34 @@ class move_simulator:
 					final_indexes = sim_pos_indexes
 					self.simulated_move_objects.append(self.calculate_move_score(final_grid, final_indexes, rotation_id))
 
-	def construct_a_move(self, start_xy_coord:tuple, clean_grid: np.ndarray, shape_array: np.ndarray):
-		simulation_grid = clean_grid.copy()
-		shape_dimensions = shape_array.shape
-		start_x, start_y = start_xy_coord
-		sim_pos_indexes = []
+	def construct_a_move(self, start_pos:tuple, clean_grid: np.ndarray, shape_array: np.ndarray):
+		"""
+		parameters: start_pos:tuple, clean_grid:np.ndarray, shape_array:np.ndarray
+		returns: tuple[np.ndarray, np.ndarray]
 
-		for y_offset in range(shape_dimensions[0]):
-			for x_offset in range(shape_dimensions[1]):
-				current_grid_val = simulation_grid[start_y + y_offset][start_x + x_offset]
-				simulation_grid[start_y + y_offset][start_x + x_offset] = current_grid_val + shape_array[y_offset][x_offset]
-				if shape_array[y_offset][x_offset] == 1:
-					sim_pos_indexes.append((start_y + y_offset, start_x + x_offset))
+		start_pos is (row, col), and represents the current position to simulate placing the move.
+		clean_grid is a binary construction of the board without the active shape present (preventing collisons with self).
+		shape_array is an array with the binary drawing for the current shape (from TRG module).
 
-		return simulation_grid, sim_pos_indexes
+		shape_array.nonzero() returns the indexes of positions in the shape grid that are non-zero as tuple.
+		np.stack combines the two arrays in the tuple to combine into one np.ndarray
+		adding the shape_coords + start_pos gives you the actual indexes that the move needs to be placed.
+		blank_construct is making a blank 20x10 grid (full of zeros) and I slice in the simulation coordinates and set them to 1.
+		simulation_grid is just the addition of 2 20x10 grids, where I've added in the simulated coorindates.
+		"""
+		shape_coords = np.stack(shape_array.nonzero(), axis=-1)
+		real_idxs = shape_coords + start_pos
+		blank_construct = np.zeros((20,10))
+		blank_construct[real_idxs[:,0], real_idxs[:, 1]] = 1
+		simulation_grid = clean_grid + blank_construct
+		simulation_grid =  simulation_grid.astype(np.uint8)
+
+		return simulation_grid, real_idxs
 
 	def check_for_hit(self, input_array: np.ndarray) -> bool:
-		for n in input_array.flatten():
-			if n == 2:
-				return True
-		return False
+		return len(input_array[input_array == 2]) > 0
 
-	def calculate_move_score(self, simulated_grid: np.ndarray, simulated_indexes: list, simulated_rotation: int):
+	def calculate_move_score(self, simulated_grid: np.ndarray, simulated_indexes: np.ndarray, simulated_rotation: int):
 		if simulated_grid is None or simulated_indexes is None:
 			return stored_move(
 			simulated_rotation,
@@ -75,13 +81,8 @@ class move_simulator:
 			0
 			)
 
-		y_coords = [position[0] for position in simulated_indexes]
-		height_score = sum([(20-y) for y in y_coords])
-
-		# print(f"range from min y_coords to 20: {list(range(min(y_coords), 20))}")
-		# check for gaps created directly below the simulated move pieces
+		height_score = np.sum(20 - simulated_indexes[:,0])
 		blockage_score = 0
-
 
 		for row, col in simulated_indexes:
 			if row + 1 < len(simulated_grid):
@@ -167,7 +168,7 @@ class move_simulator:
 class stored_move:
 	def __init__(self,
 				 rotation_id: int,
-				 position_indexes: list,
+				 position_indexes: np.ndarray,
 				 final_move_grid: np.ndarray,
 				 height_score: int,
 				 blockage_score: int,
@@ -175,8 +176,8 @@ class stored_move:
 				 ):
 		self.rotation_id = rotation_id
 		self.position_indexes = position_indexes
-		if self.position_indexes:
-			self.min_x = min([position[1] for position in self.position_indexes])
+		if self.position_indexes is not None:
+			self.min_x = np.min(self.position_indexes[:,1])
 		self.final_move_grid = final_move_grid
 		self.height_score = height_score
 		self.blockage_score = blockage_score
