@@ -178,6 +178,7 @@ class stored_move:
 		self.position_indexes = position_indexes
 		if self.position_indexes is not None:
 			self.min_x = np.min(self.position_indexes[:,1])
+			self.min_y = np.min(self.position_indexes[:,0])
 		self.final_move_grid = final_move_grid
 		self.height_score = height_score
 		self.blockage_score = blockage_score

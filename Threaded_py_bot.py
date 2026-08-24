@@ -7,6 +7,7 @@ import threading
 import time
 import Thread_bot_move_sim as MS
 
+
 class frame_master:
 	def __init__(self):
 		empty_arr = np.zeros((20,10), dtype=np.uint8)
