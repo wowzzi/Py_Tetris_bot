@@ -6,14 +6,12 @@ import threading
 class queue_system:
 	def __init__(self, tick_time):
 		self.queue = []
-		self.r_queue = []
 		self.tick_time = tick_time
 		self.running = False
 		self.action = None
-		self.r_action = None
 
 	def __len__(self):
-		return len(self.queue) + len(self.r_queue)
+		return len(self.queue) if self.action is None else len(self.queue) +1
 
 	def __bool__(self):
 		return len(self) > 0
@@ -30,35 +28,20 @@ class queue_system:
 				continue
 			self.action = self.queue.pop(0)
 			self.action.q_method()
+			print(f"processed order: {self.action}")
 			self.action = None
 
-	def start_rot_queue(self):
-		self.running = True
-		q_timer = tc.timer(self.tick_time)
-		while self.running:
-			q_timer.tick()
-			if not q_timer:
-				continue
-			q_timer.reset()
-			if len(self.r_queue) == 0:
-				continue
-			self.r_action = self.r_queue.pop(0)
-			self.r_action.q_method()
-			self.r_action = None
-
-	def stop_queues(self):
+	def stop_queue(self):
 		self.running = False
 
-	def clear_queues(self):
+	def clear_queue(self):
 		self.queue.clear()
-		self.r_queue.clear()
+		print("queue cleared")
 
-	def report_queues(self) -> list:
-		report_list = []
-		report_list.extend(self.queue)
-		report_list.extend(self.r_queue)
+	def report_q(self) -> list:
+		report_list = [str(packet) for packet in self.queue]
 		if self.action is not None:
-			report_list.append(self.action)
+			report_list.append(str(self.action))
 		return report_list
 
 	def q_left(self):
@@ -68,10 +51,10 @@ class queue_system:
 		self.queue.append(action_packet(self._press_right, "right"))
 
 	def q_rotleft(self):
-		self.r_queue.append(action_packet(self._press_z, "rotleft"))
+		self.queue.append(action_packet(self._press_z, "rotleft"))
 
 	def q_rotright(self):
-		self.r_queue.append(action_packet(self._press_up, "rotright"))
+		self.queue.append(action_packet(self._press_up, "rotright"))
 
 	def q_space(self):
 		self.queue.append(action_packet(self._press_space, "space"))
@@ -111,21 +94,23 @@ class action_packet:
 		return self.name
 
 if __name__=="__main__":
-	q_system = queue_system(0.02)
+	move_q_system = queue_system(0.02)
+	rot_q_system = queue_system(0.02)
 	print("move to notepad for test")
 	time.sleep(3)
-	queue_thread = threading.Thread(target=q_system.start_move_queue)
-	queue_thread_two = threading.Thread(target=q_system.start_rot_queue)
+	queue_thread = threading.Thread(target=move_q_system.start_move_queue)
+	queue_thread_two = threading.Thread(target=rot_q_system.start_move_queue)
 	queue_thread.start()
 	queue_thread_two.start()
 	for n in range(10):
 		time.sleep(1)
 		for _ in range(3):
-			q_system.q_c()
-			q_system.q_rotleft()
-		q_system.q_space()
+			move_q_system.q_c()
+			rot_q_system.q_rotleft()
+		move_q_system.q_space()
 
-	q_system.stop_queues()
+	move_q_system.stop_queue()
+	rot_q_system.stop_queue()
 	queue_thread.join()
 	queue_thread_two.join()
 

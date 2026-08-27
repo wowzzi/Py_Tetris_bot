@@ -502,7 +502,6 @@ class TetrisGame:
 			binary_array.append([int(not obj.is_bg) for obj in row])
 		return np.array(binary_array, dtype=np.int8)
 
-
 	def calc_rotation_needed(self, rotation_id_current, rotation_id_final):
 		return rotation_id_final - rotation_id_current
 
