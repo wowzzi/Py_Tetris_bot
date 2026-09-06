@@ -60,25 +60,11 @@ class TetrisGame:
 
 
 	def convert_sct_to_array(self):
-		# return np.array((self.sct.grab(self.screen_region)).pixels)
-		time_one = time.perf_counter()
 		screen_grab = self.sct.grab(self.screen_region)
-		print(f"grab time: {time.perf_counter() - time_one}")
-		#pp.pp(np.array(screen_grab.pixels))
-		time_one = time.perf_counter()
 		screen_array = np.asarray(screen_grab)
-		print(screen_array)
-		print(f"np.asarray time: {time.perf_counter() - time_one}")
-
-		time_one = time.perf_counter()
 		scn_grab_as_img = Image.new('RGB', screen_grab.size)
-		print(f"Image.new time: {time.perf_counter() - time_one}")
-		time_one = time.perf_counter()
 		RGB_pixel_tuple = zip(screen_grab.raw[2::4], screen_grab.raw[1::4], screen_grab.raw[::4])
-		print(f"zip time: {time.perf_counter() - time_one}")
-		time_one = time.perf_counter()
 		scn_grab_as_img.putdata(list(RGB_pixel_tuple))
-		print(f"putdata time: {time.perf_counter() - time_one}")
 		return np.array(scn_grab_as_img)
 
 	def optimised_scn_grab(self):
@@ -554,7 +540,7 @@ class TetrisGame:
 		move_timer = Timer_class.timer(self.delay_time)
 
 		move_timer.quick_reset(1.0)
-		while move_score > 0:
+		while move_score >  0:
 			# print("pressing right")
 			move_timer.tick()
 			if move_timer:

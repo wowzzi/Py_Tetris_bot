@@ -43,7 +43,7 @@ class move_simulator:
 					final_indexes = sim_pos_indexes
 					self.simulated_move_objects.append(self.calculate_move_score(final_grid, final_indexes, rotation_id))
 
-	def construct_a_move(self, start_pos:tuple, clean_grid: np.ndarray, shape_array: np.ndarray):
+	def construct_a_move(self, start_pos:tuple, clean_grid: np.ndarray, shape_array: np.ndarray) -> tuple:
 		"""
 		parameters: start_pos:tuple, clean_grid:np.ndarray, shape_array:np.ndarray
 		returns: tuple[np.ndarray, np.ndarray]
@@ -78,8 +78,15 @@ class move_simulator:
 			simulated_grid,
 			5000,
 			5000,
-			0
+			0,
+			1,
+			1
 			)
+
+		all_idxs = np.stack(simulated_grid.nonzero(), axis=-1)
+		height_range_factor = ((np.max(all_idxs[:,0]) - np.min(all_idxs[:,0])) + 1)/20
+		width_range_factor = ((np.max(all_idxs[:,1]) - np.min(all_idxs[:,1])) + 1)/10
+
 
 		height_score = np.sum(20 - simulated_indexes[:,0])
 		blockage_score = 0
@@ -104,6 +111,8 @@ class move_simulator:
 			height_score,
 			blockage_score,
 			num_completed_rows,
+			height_range_factor,
+			width_range_factor
 		)
 		return move_obj
 
@@ -111,8 +120,12 @@ class move_simulator:
 		current_move_objects = self.simulated_move_objects
 		min_overall_height = min(obj.height_score for obj in current_move_objects)
 		max_overall_height = max(obj.height_score for obj in current_move_objects)
+		adjusted_max = max_overall_height - min_overall_height
+		if adjusted_max == 0:
+			adjusted_max = max_overall_height
 		for object in current_move_objects:
-			setattr(object, "normalised_height", (object.height_score - min_overall_height) / max_overall_height)
+			normal_height = (object.height_score - min_overall_height) / adjusted_max
+			setattr(object, "normalised_height", normal_height)
 		# get any objects in the list which have a rows cleared >2
 		short_list = [obj for obj in current_move_objects if obj.rows_cleared > 2]
 		if len(short_list) > 0:
@@ -122,7 +135,7 @@ class move_simulator:
 		min_blockage_score = min(obj.blockage_score for obj in current_move_objects)
 		short_list = [obj for obj in current_move_objects if obj.blockage_score == min_blockage_score]
 		if len(short_list) == 1:
-			if short_list[0].normalised_height < 0.1:
+			if short_list[0].normalised_height < 0.5:
 				return short_list[0]
 			else:
 				print("evaluate by score")
@@ -153,9 +166,6 @@ class move_simulator:
 	def find_best_move(self):
 		self.best_move = self.evaluate_all_moves()
 
-	def find_best_score(self):
-		self.best_move = self.evaluate_moves_by_score()
-
 	def generate_clean_binary_board(self, board_state_array: np.ndarray, active_tetris_objects: list) -> np.ndarray:
 		if board_state_array is None or active_tetris_objects is None:
 			return None
@@ -173,6 +183,8 @@ class stored_move:
 				 height_score: int,
 				 blockage_score: int,
 				 rows_cleared: int,
+				 height_range_factor: int,
+				 width_range_factor: int,
 				 ):
 		self.rotation_id = rotation_id
 		self.position_indexes = position_indexes
@@ -183,7 +195,7 @@ class stored_move:
 		self.height_score = height_score
 		self.blockage_score = blockage_score
 		self.rows_cleared = rows_cleared
-		self.overall_score = (((self.blockage_score * 0.5) + 1) * self.height_score)/ (self.rows_cleared + 1)
+		self.overall_score = ((((self.blockage_score * 0.5) + 1) * self.height_score))/ ((self.rows_cleared + 1))
 
 	def __lt__(self, other):
 		return self.overall_score < other.overall_score

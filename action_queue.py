@@ -9,6 +9,8 @@ class queue_system:
 		self.tick_time = tick_time
 		self.running = False
 		self.action = None
+		self.timer = tc.timer(self.tick_time)
+		self.queue_batches = []
 
 	def __len__(self):
 		return len(self.queue) if self.action is None else len(self.queue) +1
@@ -18,18 +20,24 @@ class queue_system:
 
 	def start_move_queue(self):
 		self.running = True
-		q_timer = tc.timer(self.tick_time)
+		self.timer.reset()
 		while self.running:
-			q_timer.tick()
-			if not q_timer:
-				continue
-			q_timer.reset()
-			if len(self.queue) == 0:
-				continue
-			self.action = self.queue.pop(0)
-			self.action.q_method()
-			print(f"processed order: {self.action}")
-			self.action = None
+			self.timer.tick()
+			if self.timer:
+				if len(self.queue_batches) > 0:
+					print(self.queue_batches)
+					batch = self.queue_batches.pop(0)
+					self.queue.extend(batch)
+				self.timer.reset()
+				print("#"*10)
+				print([str(obj) for obj in self.queue])
+				if len(self.queue) > 0:
+					self.action = self.queue.pop(0)
+					print(self.action)
+					self.action.q_method()
+					print(self.action)
+					self.action = None
+					print(self.action)
 
 	def stop_queue(self):
 		self.running = False
@@ -86,6 +94,29 @@ class queue_system:
 		# hold
 		kb.send("c")
 
+	def queue_rotations(self, rotation_score:int):
+			while rotation_score > 0:
+				print(rotation_score)
+				self.q_rotright()
+				rotation_score -= 1
+			while rotation_score < 0:
+				print(rotation_score)
+				self.q_rotleft()
+				rotation_score += 1
+
+	def queue_translations(self, move_score:int):
+		while move_score > 0:
+			self.q_right()
+			move_score -= 1
+		while move_score < 0:
+			self.q_left()
+			move_score += 1
+
+	def queue_stuff(self, how_many:int, action:callable, name:str):
+		self.queue_batches.append([action_packet(action, name) for _ in range(how_many)])
+
+
+
 class action_packet:
 	def __init__(self, action, name):
 		self.q_method = action
@@ -94,25 +125,32 @@ class action_packet:
 		return self.name
 
 if __name__=="__main__":
-	move_q_system = queue_system(0.02)
-	rot_q_system = queue_system(0.02)
+	move_q_system = queue_system(0.05)
+	rot_q_system = queue_system(0.05)
 	print("move to notepad for test")
 	time.sleep(3)
 	queue_thread = threading.Thread(target=move_q_system.start_move_queue)
 	queue_thread_two = threading.Thread(target=rot_q_system.start_move_queue)
 	queue_thread.start()
 	queue_thread_two.start()
-	for n in range(10):
-		time.sleep(1)
-		for _ in range(3):
-			move_q_system.q_c()
-			rot_q_system.q_rotleft()
-		move_q_system.q_space()
+
+
+	time.sleep(0.2)
+
+	rot_q_system.queue_stuff(10, rot_q_system._press_z, "press z")
+	move_q_system.queue_stuff(10, move_q_system._press_space, "press space")
+	move_q_system.queue_stuff(10, move_q_system._press_c, "press c")
+
+
+
+	time.sleep(3)
+
 
 	move_q_system.stop_queue()
 	rot_q_system.stop_queue()
 	queue_thread.join()
 	queue_thread_two.join()
+
 
 
 

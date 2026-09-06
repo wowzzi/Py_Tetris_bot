@@ -77,6 +77,7 @@ class ref_grid_handler:
 		self.minimised_data = minimised_grids
 
 	def determine_tetromino(self, input_array: np.ndarray) -> tuple:
+		if input_array is None: return (None, None)
 		for shape_key, variants in self.ref_data.items():
 			for variant_id, ref_array in variants.items():
 				if self.check_all_equal(input_array, ref_array):
@@ -103,6 +104,7 @@ class ref_grid_handler:
 			return True
 
 	def get_minimised_array(self, shape_key) -> np.ndarray:
+		if shape_key is None: return None
 		return self.minimised_data.get(shape_key)
 
 if __name__ == "__main__":

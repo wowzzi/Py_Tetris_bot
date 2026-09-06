@@ -1,13 +1,18 @@
 import time
 
 class timer:
-	def __init__(self, finish_time):
+	def __init__(self, finish_time, sleep_factor: int | None = None):
 		self.finish_time = finish_time
+		self.sleep_factor = sleep_factor
+		if self.sleep_factor:
+			self.sleep_time = self.finish_time / sleep_factor
 		self.delta_time = 0
 		self.total_time = 0
 		self.previous_time = time.perf_counter()
 
 	def tick(self):
+		if self.sleep_factor:
+			time.sleep(self.sleep_time)
 		new_time = time.perf_counter()
 		frame_delta = new_time - self.previous_time
 		self.delta_time += frame_delta
@@ -36,8 +41,14 @@ class timer:
 		self.previous_time = time.perf_counter()
 		self.delta_time = self.finish_time * speed_factor
 
+	def set_sleep_time(self, sleep_factor: int | None = None):
+		if sleep_factor:
+			self.sleep_factor = sleep_factor
+			self.sleep_time = self.finish_time / sleep_factor
+
+
 if __name__ == '__main__':
-	test_timer = timer(0.2)
+	test_timer = timer(1)
 	n=0
 	while True:
 		test_timer.tick()
