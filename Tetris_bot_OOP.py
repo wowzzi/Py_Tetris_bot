@@ -104,12 +104,7 @@ class TetrisGame:
 		region_coords = []
 		for y_level in y_starts:
 			for x_level in x_starts:
-				screen_regions.append(tf.sub_fractionate_3d_array(
-					scrn_shot_array,
-					ref_data,
-					start_row=y_level,
-					start_col=x_level
-				))
+				screen_regions.append(scrn_shot_array[y_level:y_level+ref_height, x_level:x_level+ref_width])
 				region_coords.append((y_level, x_level))
 
 		diff_array = [np.abs(region - ref_data) for region in screen_regions]
@@ -132,15 +127,7 @@ class TetrisGame:
 			previous_min = closest_match_value
 			screen_regions.clear()
 			px_factor = (closest_match_value / 255) / (n - 0.5)
-			px_move_dist = np.array([ref_height * px_factor, ref_width * px_factor], dtype=np.int16)
-			if px_move_dist[0] < 1:
-				px_move_dist[0] = 1
-			if px_move_dist[1] < 1:
-				px_move_dist[1] = 1
-
-			print(f"px move dist array: {px_move_dist}")
-			max_x = screen_shape[1] - px_move_dist[1]
-			max_y = screen_shape[0] - px_move_dist[0]
+			px_move_dist = np.array([ref_height * px_factor, ref_width * px_factor], dtype=np.int16).clip(min=1)
 			# coords are y then x because of how arrays have to work
 			# also (0,0) is always the top left of the image, so going down means adding y, not subtracting y value.
 			new_points = {
@@ -155,23 +142,20 @@ class TetrisGame:
 			}
 			print(list(new_points.values()))
 			for new_coord in new_points.values():
-				if new_coord[0] > max_y:
-					new_coord[0] = max_y
+				if new_coord[0] > y_limit:
+					new_coord[0] = y_limit
 				elif new_coord[0] < 0:
 					new_coord[0] = 0
-				if new_coord[1] > max_x:
-					new_coord[1] = max_x
+				if new_coord[1] > x_limit:
+					new_coord[1] = x_limit
 				elif new_coord[1] < 0:
 					new_coord[1] = 0
-				screen_regions.append(tf.sub_fractionate_3d_array(
-					scrn_shot_array,
-					ref_data,
-					start_row=new_coord[0],
-					start_col=new_coord[1]
-				))
+				y = new_coord[0]
+				x = new_coord[1]
+				screen_regions.append(scrn_shot_array[y:y+ref_height, x:x+ref_width])
 			diff_array = [np.abs(region - ref_data) for region in screen_regions]
 			mean_array = [np.mean(diff) for diff in diff_array]
-			print(mean_array)
+
 			closest_match_index = np.argmin(mean_array)
 			closest_match_value = np.min(mean_array)
 			if previous_min < closest_match_value:
@@ -777,7 +761,7 @@ class TetrisGame:
 if __name__ == "__main__":
 	mss_instance = mss.MSS()
 	# 31jul26 fps was at 12
-	game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=20, action_timer_delay=0.02)
+	game_bot = TetrisGame(monitor=1, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=20, action_timer_delay=0.02)
 	game_bot.set_ref_path()
 	game_bot.define_screen_region()
 	game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
