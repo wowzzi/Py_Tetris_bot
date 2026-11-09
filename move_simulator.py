@@ -130,6 +130,11 @@ class move_simulator:
 		short_list = [obj for obj in current_move_objects if obj.rows_cleared > 2]
 		if len(short_list) > 0:
 			return short_list[0]
+		# now that we have selected for any 3 or 4 line clear moves, lets limit the moves by filtering out any that
+		# would be placed into the final column in the grid index 9
+		if any([obj.position_indexes is None for obj in current_move_objects]): return
+		# current_move_objects = [obj for obj in current_move_objects if not np.any(obj.position_indexes[:, 1] == 9)]
+
 
 		# short list the ones with the lowest blockage score
 		min_blockage_score = min(obj.blockage_score for obj in current_move_objects)
@@ -138,16 +143,17 @@ class move_simulator:
 			if short_list[0].normalised_height < 0.5:
 				return short_list[0]
 			else:
-				print("evaluate by score")
-				return self.evaluate_moves_by_score()
+				# print("evaluate by score")
+				# return self.evaluate_moves_by_score()
+				short_list = [obj for obj in current_move_objects if obj.blockage_score <= min_blockage_score +1]
 
 		# check if those remaining clear 2 lines
-		cleared_two_shortlist = [obj for obj in short_list if obj.rows_cleared == 2]
-		cleared_list_length = len(cleared_two_shortlist)
-		if cleared_list_length == 1:
-			return cleared_two_shortlist[0]
-		elif cleared_list_length > 1:
-			short_list = cleared_two_shortlist
+		# cleared_two_shortlist = [obj for obj in short_list if obj.rows_cleared == 2]
+		# cleared_list_length = len(cleared_two_shortlist)
+		# if cleared_list_length == 1:
+		# 	return cleared_two_shortlist[0]
+		# elif cleared_list_length > 1:
+		# 	short_list = cleared_two_shortlist
 
 		# get those remaining with the lowest height score
 		min_height_score = min(obj.height_score for obj in short_list)
@@ -195,7 +201,8 @@ class stored_move:
 		self.height_score = height_score
 		self.blockage_score = blockage_score
 		self.rows_cleared = rows_cleared
-		self.overall_score = ((((self.blockage_score * 0.5) + 1) * self.height_score))/ ((self.rows_cleared + 1))
+		row_score = 0.0775463*(self.rows_cleared**3) -0.49421296*(self.rows_cleared) + 0.98752
+		self.overall_score = ((((self.blockage_score * 0.5) + 1) * self.height_score))/ row_score
 
 	def __lt__(self, other):
 		return self.overall_score < other.overall_score

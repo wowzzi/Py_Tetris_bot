@@ -190,17 +190,8 @@ class TetrisGame:
 			return
 
 		if adjustment:
-			x_offset = int(input("x offset: "))
-			y_offset = int(input("y offset: "))
-			_with_offset_x = self.closest_coords[1] + x_offset
-			_with_offset_y = self.closest_coords[0] + y_offset
-			target_px_tup = (_with_offset_y, _with_offset_x)
-			print(type(self.closest_coords))
-
-
-			print(f"target px coord: {target_px_tup}")
-			print(self.present_scn[target_px_tup])
-			self.present_scn[target_px_tup] = [255, 0, 0]
+			if hasattr(self, "target_px_tup"):
+				self.present_scn[self.target_px_tup] = [255, 0, 0]
 
 		calibrated_img = Image.fromarray(self.present_scn)
 		if show:
@@ -213,6 +204,19 @@ class TetrisGame:
 				img_fp = img_fp.with_stem(f"{original_stem}{n}")
 				n += 1
 			calibrated_img.save(img_fp)
+
+	def set_highlight_offset(self):
+		try:
+			x_offset = int(input("x offset: "))
+		except:
+			x_offset = 0
+		try:
+			y_offset = int(input("y offset: "))
+		except:
+			y_offset = 0
+		_with_offset_x = self.closest_coords[1] + x_offset
+		_with_offset_y = self.closest_coords[0] + y_offset
+		self.target_px_tup = (_with_offset_y, _with_offset_x)
 
 	def set_grid_dims(self, x_rel_offset=0, y_rel_offset=0, grid_px_width=10, grid_px_height=10):
 		self.grid_x_offset = x_rel_offset
@@ -639,7 +643,7 @@ class TetrisGame:
 
 
 		self.move_simulator.find_best_move() #- original code
-		# self.move_simulator.find_best_score()
+		# self.move_simulator.best_move = self.move_simulator.evaluate_moves_by_score()
 
 		self.best_move_obj = self.move_simulator.best_move
 		if self.hold_piece is not None and self.move_count >1:
@@ -647,7 +651,7 @@ class TetrisGame:
 			# hear me out, I need to give the simulator the actual active tetris objects not the holds, because we use it to clean the grid for simulations
 			self.hold_move_sim.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.hold_piece.get("shape_data"))
 			self.hold_move_sim.find_best_move() #- original code
-			# self.hold_move_sim.find_best_score()
+			# self.hold_move_sim.best_move = self.hold_move_sim.evaluate_moves_by_score()
 
 			if self.move_simulator.best_move <= self.hold_move_sim.best_move:
 				pass
@@ -761,7 +765,7 @@ class TetrisGame:
 if __name__ == "__main__":
 	mss_instance = mss.MSS()
 	# 31jul26 fps was at 12
-	game_bot = TetrisGame(monitor=1, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=20, action_timer_delay=0.02)
+	game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=20, action_timer_delay=0.02)
 	game_bot.set_ref_path()
 	game_bot.define_screen_region()
 	game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
@@ -906,3 +910,6 @@ if __name__ == "__main__":
 
 		elif event.event_type == kb.KEY_DOWN and event.name == "u":
 			game_bot.run_reference_check(save=True, show=True, cycle=True, adjustment=True)
+
+		elif event.event_type == kb.KEY_DOWN and event.name == "t":
+			game_bot.set_highlight_offset()
