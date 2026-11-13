@@ -14,6 +14,15 @@ tetromino_keys = (
 	'sq',
 	'long',
 )
+tetromino_colours = {
+	'fw z': "red",
+	'bw z': "green",
+	'fw l': "orange",
+	'bw l': "blue",
+	't': "purple",
+	'sq': "yellow",
+	'long': "cyan"
+}
 
 def deter_repeats(*nums):
     ref = nums[0]
@@ -25,7 +34,7 @@ def generate_sequence(n_moves:int = 100, seed:int = 0) -> np.ndarray:
     key_seq = []
     prev_two = None
     n=0
-    while n < n_moves -1:
+    while n < n_moves:
         rep_error = False
         rn = int(rng.random() * len(tetromino_keys))
         if len(key_seq) > 2:
@@ -52,23 +61,51 @@ def eval_board(board:np.ndarray) -> np.ndarray:
     else:
         return b
 
-if __name__ == '__main__':
+def compile_simulations(tetro_sequence:list):
     move_sim = MS.tb_move_sim()
-    tetro_sequence = np.asarray(generate_sequence(n_moves = 100, seed = 2))
     trg_handler = trg.ref_grid_handler()
     curr_board = board_gen.generate_blank_board()
-    print(f"simulation: 0\n{curr_board}\n")
+    results = []
     for n, scode in enumerate(tetro_sequence, start=1):
+        # check each iteration incase it gets blocked
         if not board_gen.add_shape_to_board(curr_board, scode, trg_handler):
-            print(f"simulations failed at sim number {n}")
-            break
+            continue
+        # get the shape data from trg
         shape_dict = trg_handler.minimised_data.get(scode)
+        # use move simulator to generate all possible moves and then pick the best one
         move_sim.new_sim_moves(curr_board, shape_dict)
         move_sim.best_move = move_sim.evaluate_moves_by_score()
+        # extract the board and remove any cleared lines
         curr_board = move_sim.best_move.final_move_grid
-        print(f"simulation: {n}, shape = {scode}\n{curr_board}\n")
         curr_board = eval_board(curr_board)
-        print(f"after evaluation:\n{curr_board}\n")
+        # append results with new data
+        results.append((curr_board, move_sim.best_move, scode, n))
+
+    return results
+
+
+
+if __name__ == '__main__':
+    sequence = generate_sequence(n_moves=100, seed=0)
+    moves = compile_simulations(sequence)
+    for n, result in enumerate(moves):
+        print(f"Iteration {n}\n{result[0]}")
+    # move_sim = MS.tb_move_sim()
+    # tetro_sequence = np.asarray(generate_sequence(n_moves = 100, seed = 2))
+    # trg_handler = trg.ref_grid_handler()
+    # curr_board = board_gen.generate_blank_board()
+    # print(f"simulation: 0\n{curr_board}\n")
+    # for n, scode in enumerate(tetro_sequence, start=1):
+    #     if not board_gen.add_shape_to_board(curr_board, scode, trg_handler):
+    #         print(f"simulations failed at sim number {n}")
+    #         break
+    #     shape_dict = trg_handler.minimised_data.get(scode)
+    #     move_sim.new_sim_moves(curr_board, shape_dict)
+    #     move_sim.best_move = move_sim.evaluate_moves_by_score()
+    #     curr_board = move_sim.best_move.final_move_grid
+    #     print(f"simulation: {n}, shape = {scode}\n{curr_board}\n")
+    #     curr_board = eval_board(curr_board)
+    #     print(f"after evaluation:\n{curr_board}\n")
 
     # write function to check the boards produced by the simulator
     # need to check if a line is cleared and update the board by removing it

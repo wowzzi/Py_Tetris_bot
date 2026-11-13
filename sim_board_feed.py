@@ -7,7 +7,7 @@ def generate_blank_board():
 
 def add_shape_to_board(game_board:np.ndarray, shape_key:str, ref_grid_obj) -> bool:
     tmo_dict = ref_grid_obj.minimised_data.get(shape_key)
-    tmos = [tmo_dict.get(key) for key in tmo_dict.keys()]
+    tmos = tmo_dict.values()
     r = []
     for tmo in tmos:
         height = tmo.shape[0]
