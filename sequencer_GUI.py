@@ -3,6 +3,9 @@ from tkinter import ttk
 import numpy as np
 import sequence_simulator as seq
 import sim_board_feed as feed
+import sequencer_GUI_menu as menu_maker
+import io_utils as io
+import json
 
 def call_sequence():
     global root
@@ -43,11 +46,7 @@ class display_board:
         for row in self.squares:
             for obj in row:
                 if hasattr(obj, "rect_id"):
-                    # obj.container.delete()
                     self.canvas.delete(obj.rect_id)
-                    # print(type(obj.rect_id))
-                    # print(obj.rect_id)
-
 
 class board_sq:
     def __init__(self, master_board, row:int, col:int, coords:np.ndarray | tuple | list, size:int | float):
@@ -88,22 +87,52 @@ def update_board_canvas(*args):
     current_result = root.sim_results[current_iter]
     np_grid = current_result[0]
     taken_coords = np.stack(np_grid.nonzero(), axis =-1)
-    colour_str = seq.tetromino_colours.get(current_result[2])
     for row, col in taken_coords:
         canvas_obj.switch_squares("wheat", row, col)
-    active_coords = current_result[1].position_indexes
-    for row,col in active_coords:
-        canvas_obj.switch_squares(colour_str, row, col)
 
+    colour_str = seq.tetromino_colours.get(current_result[2])
+    active_coords = current_result[1]
+    if active_coords and colour_str:
+        for row,col in active_coords.position_indexes:
+            canvas_obj.switch_squares(colour_str, row, col)
 
+def update_slider():
+    global root
+    max_idx = len(root.sim_results) - 1
+    if root.run_bool:
+        current_iter = root.iter_slider.get()
+        if current_iter < max_idx:
+            root.iter_slider.set(current_iter+1)
+            root.after(root.anim_delay.get(), update_slider)
+        else:
+            root.run_bool = False
 
+def animate():
+    global root
+    if not hasattr(root, "sim_results"):
+        return
+    if not root.run_bool:
+        root.run_bool = True
+        update_slider()
+    elif root.run_bool:
+        root.run_bool = False
 
-    # so with taken coords we should use those coords to index the canvas grid and turn them orange or smthn
-    # then take the coords from index 1 in result, that object has attribute position_indexes, use those to
-    # change the colour of the those sqaures to a colour from the dict of colours
-    # [[y,x], [y,x]]
+def test_callable():
+    print("function call")
 
-
+def parse_json():
+    global root
+    fp = io.get_json_file()
+    with open(fp) as json_f:
+        data_in = json.load(json_f)
+    # data_in is dict
+    data_in = [(np.asarray(x), None, None, None) for x in data_in.values()]
+    root.textbox.delete(1.0, tk.END)
+    root.textbox.insert(tk.END, "Using imported data")
+    root.sim_results = data_in
+    root.iter_slider.configure(to=len(root.sim_results)-1)
+    root.iter_slider.set(0)
+    update_board_canvas()
 
 
 ########################
@@ -119,7 +148,6 @@ left_frame.pack(side=tk.LEFT)
 
 right_frame = tk.Frame(body)
 right_frame.pack(side=tk.LEFT)
-
 
 ## Seed selector
 seed_label = tk.Label(left_frame, text="Seed:")
@@ -154,32 +182,6 @@ root.clear_button.grid(row=4, column=0, padx=5, pady=5, columnspan=2)
 #####
 ## canvas for board
 canvas_obj = display_board(right_frame, 30)
-# canvas_obj.switch_squares("blue", 0, 0)
-# canvas_obj.switch_squares("white", 0, 1)
-# canvas_obj.switch_squares("green", 0, 2)
-# canvas_obj.switch_squares("red", 0, 3)
-# canvas_obj.switch_squares("purple", 0, 4)
-# canvas_obj.switch_squares("yellow", 0, 5)
-# canvas_obj.switch_squares("orange", 0, 6)
-# canvas_obj.switch_squares("orange", 0, 7)
-# canvas_obj.switch_squares("orange", 0, 8)
-# canvas_obj.switch_squares("orange", 0, 9)
-# canvas_obj.switch_squares("orange", 19, 9)
-# canvas_width = 300
-# canvas_height = 600
-# board_canvas = tk.Canvas(right_frame, width=canvas_width, height=canvas_height, bg="black")
-# board_canvas.pack()
-# xs = np.linspace(0, canvas_width, 11)
-# ys = np.linspace(0, canvas_height, 21)
-#
-# for x in xs:
-#     board_canvas.create_line(x, 0, x, canvas_height, fill="white")
-# for y in ys:
-#     board_canvas.create_line(0, y, canvas_width, y, fill="white")
-#
-# coord_mesh = np.stack(np.meshgrid(xs[:-1], ys[:-1]), axis=-1)
-# print(coord_mesh.shape)
-# sq = board_canvas.create_rectangle(xs[1]+1, ys[1]+1, xs[2]-1, ys[2]-1, fill="white")
 
 #####
 ## simulate button
@@ -188,12 +190,27 @@ root.sim_button.grid(row=5, column=0, padx=5, pady=5, columnspan=2)
 
 #####
 ## iteration slider
-# seq_len = root.textbox.get("1.0", tk.END)
-# seq_len = seq_len.split(",")
-# seq_len = len([x.strip() for x in seq_len if x in seq.tetromino_keys])
 root.iter_slider = tk.Scale(right_frame, from_=0, to=100, orient=tk.HORIZONTAL, length=275, label="Iteration slider", command=update_board_canvas)
 root.iter_slider.pack()
 
+#####
+## play button
+root.run_bool = False
+root.run_button = tk.Button(left_frame, text="▶️⏸️", command=animate)
+root.run_button.grid(row=6, column=0, padx=5, pady=5, columnspan=2)
+
+#####
+## animation speed
+root.anim_delay = tk.IntVar(value=500) #miliseconds
+root.speed_label = tk.Label(left_frame, text="Speed (ms):", fg="blue")
+root.speed_label.grid(row=7, column=0, padx=5, pady=5)
+root.speed_spinbox = ttk.Spinbox(left_frame, width=5, textvariable=root.anim_delay, from_=5, to=5000)
+root.speed_spinbox.grid(row=7, column=1, padx=5, pady=5)
+
+#####
+## file menu
+menu_structure = {"File": {"Import json": parse_json}}
+menu_tracking = menu_maker.add_menu(root, **menu_structure)
 
 ### MAINLOOP ###
 root.mainloop()

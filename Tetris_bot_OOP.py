@@ -11,6 +11,7 @@ import Tetris_square_obj as Tetob
 import Tetromino_ref_grids as trg
 import move_simulator as MS
 import Timer_class
+import json
 
 class TetrisGame:
 	def __init__(self, monitor: int =0, scn_width: int=300, scn_height: int=300, mss_instance=None, fps: int = 8, action_timer_delay: float = 0.04):
@@ -640,19 +641,14 @@ class TetrisGame:
 		# class object to handle simulated board states and produce the optimal move (he says)
 
 		self.move_simulator.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.minimised_shape_dict)
-
-
 		self.move_simulator.find_best_move() #- original code
 		# self.move_simulator.best_move = self.move_simulator.evaluate_moves_by_score()
-
 		self.best_move_obj = self.move_simulator.best_move
 		if self.hold_piece is not None and self.move_count >1:
-
-			# hear me out, I need to give the simulator the actual active tetris objects not the holds, because we use it to clean the grid for simulations
+			# I need to give the simulator the actual active tetris objects not the holds, because we use it to clean the grid for simulations
 			self.hold_move_sim.simulate_moves(self.binary_board_state, self.active_tetris_objects, self.hold_piece.get("shape_data"))
 			self.hold_move_sim.find_best_move() #- original code
 			# self.hold_move_sim.best_move = self.hold_move_sim.evaluate_moves_by_score()
-
 			if self.move_simulator.best_move <= self.hold_move_sim.best_move:
 				pass
 			else:
@@ -712,17 +708,20 @@ class TetrisGame:
 			'shape_key': current_shape_id
 		}
 
-
 	def set_game_log_path(self):
-		game_log = Path(__file__).with_name("game_log.txt")
+		game_log = Path(__file__).with_name("game_log.json")
 		original_stem = game_log.stem
 		n = 1
 		while game_log.exists():
 			game_log = game_log.with_stem(f"{original_stem}{n}")
 			n += 1
-
 		game_log.touch()
 		self.game_log_fp = game_log
+
+	def dump_to_json(self):
+		if not hasattr(self, "data_log"): return
+		with open(self.game_log_fp, "w") as f:
+			json.dump(self.data_log, f)
 
 	def write_to_gamelog(self, data):
 		if not hasattr(self, "game_log_fp"):
@@ -757,22 +756,20 @@ class TetrisGame:
 		else:
 			raise Exception("no reference file found")
 
-
 ######################
 #### Script Start ####
 ######################
 
 if __name__ == "__main__":
 	mss_instance = mss.MSS()
-	# 31jul26 fps was at 12
 	game_bot = TetrisGame(monitor=2, scn_width=820, scn_height=1000, mss_instance=mss_instance, fps=20, action_timer_delay=0.02)
 	game_bot.set_ref_path()
 	game_bot.define_screen_region()
 	game_bot.set_grid_dims(x_rel_offset=-195, y_rel_offset=33, grid_px_width=234, grid_px_height=495)
-	game_bot.debug_mode = False
+	game_bot.debug_mode = True
+	game_bot.data_log = {}
 	if game_bot.debug_mode:
 		game_bot.set_game_log_path()
-
 
 	while True:
 		# wait for next event.
@@ -787,42 +784,24 @@ if __name__ == "__main__":
 				log_string = "o pressed, automation starting!\n"
 
 			while True:
+				game_bot.clock.tick()
 				if game_bot.clock:
-					if game_bot.debug_mode:
-						log_string = ""
 					# stage 1
 					game_bot.stage_one_image_processing()
-
 					# handle error if we cant find the next tetromino
 					error_code = game_bot.handle_active_obj_error()
 					if error_code == 0:
 						game_bot.clock.quick_reset(speed_factor = 0.8)
-						if game_bot.debug_mode:
-							log_string = log_string + f"Couldn't find the active group"
-							log_string = log_string + "\n"
-							board_array_as_string = np.array2string(game_bot.binary_board_state)
-							log_string = log_string + board_array_as_string
-							log_string = log_string + "\n"
-
-							game_bot.write_to_gamelog(log_string)
 						continue
 					elif error_code == 1:
 						print("Automated loop end")
 						break
-
 					# stage 2
 					prev_time = time.perf_counter()
 					if game_bot.stage_two_shape_characteristics():
 						game_bot.clock.quick_reset(speed_factor = 0.8)
-						if game_bot.debug_mode:
-							log_string = log_string + f"Board not fully reset - n squares was same as expected"
-							log_string = log_string + "\n"
-							board_array_as_string = np.array2string(game_bot.binary_board_state)
-							log_string = log_string + board_array_as_string
-							log_string = log_string + "\n"
-							game_bot.write_to_gamelog(log_string)
 						continue
-
+					game_bot.data_log[str(game_bot.move_count)] = game_bot.binary_board_state.tolist()
 					if game_bot.hold_piece is None:
 						# save the current data as piece data
 						game_bot.hold_piece = {
@@ -835,75 +814,19 @@ if __name__ == "__main__":
 						game_bot.clock.reset()
 						continue
 
-					if game_bot.debug_mode:
-						board_array_as_string = np.array2string(game_bot.binary_board_state)
-						log_string = log_string + f"Run {game_bot.move_count}: board state"
-						log_string = log_string +"\n"
-						log_string = log_string + board_array_as_string
-						log_string = log_string +"\n"
-
-
 					# stage 3
 					prev_time = time.perf_counter()
 					game_bot.stage_three_simulate_moves()
-					if game_bot.debug_mode:
-						for sim_no, obj in  enumerate(game_bot.hold_move_sim.simulated_move_objects, start =1):
-							log_string = log_string +"\n"
-							log_string = log_string +f"simulation {sim_no}"
-							log_string = log_string +"\n"
-							log_string = log_string +f"rotation id: {obj.rotation_id}"
-							log_string = log_string +"\n"
-							log_string = log_string +f"indexes for each square in the sim: {obj.position_indexes}"
-							log_string = log_string +"\n"
-							log_string = log_string +f"column index: {obj.min_x}"
-							log_string = log_string +"\n"
-							log_string = log_string +f"height score: {obj.height_score}"
-							log_string = log_string +"\n"
-							log_string = log_string +f"blockage_score: {obj.blockage_score}"
-							log_string = log_string +"\n"
-							log_string = log_string +f"rows_cleared: {obj.rows_cleared}"
-							log_string = log_string +"\n"
-							log_string = log_string +f"simulated grid: \n{np.array2string(obj.final_move_grid)}"
-
-
 					prev_time = time.perf_counter()
+					# stage 4
 					game_bot.stage_four_automate_moves()
-
+					# stage 5
 					game_bot.stage_five_hit_space(delay_seconds=0.02)
-					# game_bot.total_lines_cleared += game_bot.move_simulator.best_move.rows_cleared
-					# n=0
-					# previous = 0.2
-					# time.sleep(0.01)
-
-					if game_bot.debug_mode:
-						log_string = log_string + "\n"
-						log_string = log_string + f"BEST rotation ID: {game_bot.move_simulator.best_move.rotation_id}"
-						log_string = log_string + "\n"
-						log_string = log_string + f"BEST column: {game_bot.move_simulator.best_move.min_x}"
-						log_string = log_string + "\n"
-						log_string = log_string + f"BEST height score: {game_bot.move_simulator.best_move.height_score}"
-						log_string = log_string + "\n"
-						log_string = log_string + f"BEST blockage_score: {game_bot.move_simulator.best_move.blockage_score}"
-						log_string = log_string + "\n"
-						log_string = log_string + f"BEST rows_cleared: {game_bot.move_simulator.best_move.rows_cleared}"
-						log_string = log_string + "\n"
-						log_string = log_string + f"required rotation presses: {game_bot.required_rotate}, required horizontal translation: {game_bot.move_score}"
-						log_string = log_string + "\n"
-						final_move_board = np.array2string(game_bot.move_simulator.best_move.final_move_grid)
-						log_string = log_string + "final simulated board layout"
-						log_string = log_string + "\n"
-						log_string = log_string + final_move_board
-						log_string = log_string + "\n"
-						log_string = log_string +"#"*100
-						log_string = log_string +"\n"
-						log_string = log_string +"#"*100
-						log_string = log_string +"\n"
-						game_bot.write_to_gamelog(log_string)
-
 					game_bot.move_count +=1
 					game_bot.clock.reset()
-					# print("o ran")
-				game_bot.clock.tick()
+
+			game_bot.dump_to_json()
+			game_bot.data_log.clear()
 
 		elif event.event_type == kb.KEY_DOWN and event.name == "q":
 			break
@@ -913,3 +836,5 @@ if __name__ == "__main__":
 
 		elif event.event_type == kb.KEY_DOWN and event.name == "t":
 			game_bot.set_highlight_offset()
+# output as JSON a log containing: list of tuples[(curr_board, move_sim.best_move, scode, n)]
+# therefore the most apropriate structure would be a dict of numeric keys each pointing to the tuple
